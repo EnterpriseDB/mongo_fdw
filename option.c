@@ -152,6 +152,11 @@ mongo_get_options(Oid foreignTableId)
 	char *collectionName = NULL;
 	char *username= NULL;
 	char *password= NULL;
+#ifdef META_DRIVER
+	char *readPreference = NULL;
+
+	readPreference = mongo_get_option_value(foreignTableId, OPTION_NAME_READ_PREFERENCE);
+#endif
 
 	addressName = mongo_get_option_value(foreignTableId, OPTION_NAME_ADDRESS);
 	if (addressName == NULL)
@@ -181,10 +186,12 @@ mongo_get_options(Oid foreignTableId)
 	mongoFdwOptions->collectionName = collectionName;
 	mongoFdwOptions->username = username;
 	mongoFdwOptions->password = password;
+#ifdef META_DRIVER
+	mongoFdwOptions->readPreference = readPreference;
+#endif
 
 	return mongoFdwOptions;
 }
-
 
 void
 mongo_free_options(MongoFdwOptions *mongoFdwOptions)

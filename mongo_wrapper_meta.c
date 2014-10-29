@@ -25,13 +25,17 @@
  * Connect to MongoDB server using Host/ip and Port number.
  */
 MONGO_CONN*
-MongoConnect(const char* host, const unsigned short port, char* databaseName, char *user, char *password)
+MongoConnect(const char* host, const unsigned short port, char* databaseName, char *user, char *password, char *readPreference)
 {
 	MONGO_CONN *client = NULL;
 	char* uri = NULL;
 
-	if (user && password)
+	if (user && password && readPreference)
+		uri = bson_strdup_printf ("mongodb://%s:%s@%s:%hu/?readPreference=%s", user, password, host, port, readPreference);
+	else if (user && password)
 		uri = bson_strdup_printf ("mongodb://%s:%s@%s:%hu/", user, password, host, port);
+	else if (readPreference)
+		uri = bson_strdup_printf ("mongodb://%s:%hu/?readPreference=%s", host, port, readPreference);
 	else
 		uri = bson_strdup_printf ("mongodb://%s:%hu/", host, port);
 
@@ -130,7 +134,7 @@ MongoCursorCreate(MONGO_CONN* conn, char* database, char *collection, BSON* q)
 	bson_error_t error;
 
 	c = mongoc_client_get_collection (conn, database, collection);
-	cur = mongoc_collection_find(c, MONGOC_QUERY_NONE, 0, 0, 0, q, NULL, NULL);
+	cur = mongoc_collection_find(c, MONGOC_QUERY_SLAVE_OK, 0, 0, 0, q, NULL, NULL);
 	mongoc_cursor_error(cur, &error);
 	if (!cur)
 		ereport(ERROR, (errmsg("failed to create cursor"),
@@ -247,6 +251,14 @@ BsonIterString(BSON_ITERATOR *it)
 	return bson_iter_utf8(it, &len);
 }
 
+const char*
+BsonIterBinData(BSON_ITERATOR *it, uint32_t *len)
+{
+	const uint8_t *binary = NULL;
+	bson_subtype_t subtype = BSON_SUBTYPE_BINARY;
+	bson_iter_binary (it, &subtype, &len, &binary);
+	return (char*)binary;
+}
 
 const bson_oid_t *
 BsonIterOid(BSON_ITERATOR *it)
@@ -354,6 +366,11 @@ BsonAppendUTF8(BSON *b, const char* key, char *v)
 	return bson_append_utf8(b, key, strlen(key), v, strlen(v));
 }
 
+bool
+BsonAppendBinary(BSON *b, const char* key, char *v, size_t len)
+{
+	return bson_append_binary(b, key, (int)strlen(key), BSON_SUBTYPE_BINARY, v, len);
+}
 
 bool
 BsonAppendDate(BSON *b, const char* key, time_t v)
@@ -395,34 +412,41 @@ BsonFinish(BSON* b)
  * Count the number of documents.
  */
 double
-MongoAggregateCount(MONGO_CONN* conn, const char* database, const char* collection, const  BSON* b)
+MongoAggregateCount(MONGO_CONN* conn, const char* database, const char* collection, const BSON* b)
 {
-	BSON *cmd = NULL;
-	BSON *out;
-	double count = -1;
-	bool r = false;
-	bson_error_t error;
-	mongoc_collection_t *c = NULL;
+	const BSON *command;
+	BSON *reply;
+	const BSON *doc;
+	double count;
+	mongoc_cursor_t *cursor;
+	bool ret;
 
-	c = mongoc_client_get_collection (conn, database, collection);
-
-	cmd = BsonCreate();
-	out = BsonCreate();
-	BsonAppendUTF8(cmd, "count", (char*)collection);
+	command = BsonCreate();
+	reply = BsonCreate();
+	BsonAppendUTF8(command, "count", (char*)collection);
 	if (b) /* not empty */
-		BsonAppendBson(cmd, "query", (BSON*)b);
+		BsonAppendBson(command, "query", (BSON*)b);
 
-	BsonFinish(cmd);
-	r = mongoc_collection_command_simple(c, cmd, NULL, out, &error);
-	if (r)
-	{
+	BsonFinish(command);
+
+	cursor = mongoc_client_command(conn, database, MONGOC_QUERY_SLAVE_OK, 0, 1, 0, command, NULL, NULL);
+
+	ret = mongoc_cursor_next(cursor, &doc);
+
+	if (ret) {
+		bson_copy_to(doc, reply);
 		bson_iter_t it;
-		if (bson_iter_init_find(&it, out, "n"))
-				count = BsonIterDouble(&it);
+		if (bson_iter_init_find(&it, reply, "n"))
+			count = BsonIterDouble(&it);
+	} else {
+		count = -1;
 	}
-	mongoc_collection_destroy(c);
 
-	BsonDestroy(out);
-	BsonDestroy(cmd);
+	mongoc_cursor_destroy(cursor);
+
+	BsonDestroy(reply);
+	BsonDestroy(doc);
+	BsonDestroy(command);
+
 	return count;
 }

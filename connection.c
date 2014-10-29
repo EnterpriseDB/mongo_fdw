@@ -64,7 +64,11 @@ static HTAB *ConnectionHash = NULL;
  * is established if we don't already have a suitable one.
  */
 MONGO_CONN*
+#ifdef META_DRIVER
+mongo_get_connection(char *host, int32 port, char *databaseName, char *user, char *password, char *readPreference)
+#else
 mongo_get_connection(char *host, int32 port, char *databaseName, char *user, char *password)
+#endif
 {
 	bool found;
 	ConnCacheEntry *entry;
@@ -101,7 +105,12 @@ mongo_get_connection(char *host, int32 port, char *databaseName, char *user, cha
 	}
 	if (entry->conn == NULL)
 	{
+#ifdef META_DRIVER
+		entry->conn = MongoConnect(host, port, databaseName, user, password, readPreference);
+#else
 		entry->conn = MongoConnect(host, port, databaseName, user, password);
+#endif
+		
 		elog(DEBUG3, "new mongo_fdw connection %p for server \"%s:%d\"",
 			 entry->conn, host, port);
 	}

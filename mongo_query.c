@@ -251,8 +251,13 @@ QueryDocument(Oid relationId, List *opExpressionList)
 
 	if (!BsonFinish(queryDocument))
 	{
+#ifdef META_DRIVER
+		ereport(ERROR, (errmsg("could not create document for query"),
+						errhint("BSON flags: %d", queryDocument->flags)));
+#else
 		ereport(ERROR, (errmsg("could not create document for query"),
 						errhint("BSON error: %d", queryDocument->err)));
+#endif
 	}
 
 	return queryDocument;
