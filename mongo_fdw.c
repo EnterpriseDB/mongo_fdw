@@ -1074,6 +1074,11 @@ ForeignTableDocumentCount(Oid foreignTableId)
 	/* resolve foreign table options; and connect to mongo server */
 	options = mongo_get_options(foreignTableId);
 
+#ifdef META_DRIVER
+	mongoConnection = mongo_get_connection(options->addressName, options->portNumber, options->databaseName, options->username, options->password, options->readPreference);
+#else
+	mongoConnection = mongo_get_connection(options->addressName, options->portNumber, options->databaseName, options->username, options->password);
+#endif
 	/*
 	 * Get connection to the foreign server. Connection manager will
 	 * establish new connection if necessary.
@@ -1296,6 +1301,12 @@ ColumnTypesCompatible(BSON_TYPE bsonType, Oid columnTypeId)
 			{
 				compatibleTypes = true;
 			}
+#ifdef META_DRIVER
+			if (bsonType == BSON_TYPE_OID)
+			{
+				compatibleTypes = true;
+			}
+#endif
 			break;
 		}
 		case NAMEOID:
@@ -1505,8 +1516,23 @@ ColumnValue(BSON_ITERATOR *bsonIterator, Oid columnTypeId, int32 columnTypeMod)
 		}
 		case BYTEAOID:
 		{
-			int value_len = BsonIterBinLen(bsonIterator);
-			const char *value = BsonIterBinData(bsonIterator);
+			int value_len;
+			const char *value;
+#ifdef META_DRIVER
+			switch (BsonIterType(bsonIterator))
+			{
+				case BSON_TYPE_OID:
+					value = BsonIterOid(bsonIterator);
+					value_len = 12;
+					break;
+				default: 
+					value = BsonIterBinData(bsonIterator, &value_len);
+					break;
+			}
+#else
+			value_len = BsonIterBinLen(bsonIterator);
+			value = BsonIterBinData(bsonIterator);
+#endif
 			bytea *result = (bytea *)palloc(value_len + VARHDRSZ);
 			memcpy(VARDATA(result), value, value_len);
 			SET_VARSIZE(result, value_len + VARHDRSZ);
@@ -1546,7 +1572,18 @@ ColumnValue(BSON_ITERATOR *bsonIterator, Oid columnTypeId, int32 columnTypeMod)
 			}
 			is_array = (BSON_ARRAY == type);
 
+#ifdef META_DRIVER
+			if (is_array)
+			{
+				DumpJsonArray(buffer, bsonIterator);
+			}
+			else
+			{
+				DumpJsonObject(buffer, bsonIterator);
+			}
+#else
 			DumpJson(buffer, bson_iterator_value(bsonIterator), is_array);
+#endif
 
 			result = cstring_to_text_with_len(buffer->data, buffer->len);
 
@@ -1577,6 +1614,45 @@ ColumnValue(BSON_ITERATOR *bsonIterator, Oid columnTypeId, int32 columnTypeMod)
  *
  * [1] http://docs.mongodb.org/manual/reference/mongodb-extended-json/
  */
+#ifdef META_DRIVER
+void
+DumpJsonObject(StringInfo output, BSON_ITERATOR *iter) {
+	char *json;
+	uint32_t len;
+	const uint8_t *data;
+	BSON bson;
+	
+	bson_iter_document(iter, &len, &data);
+
+	if (bson_init_static(&bson, data, len))
+	{
+	  if((json = bson_as_json (&bson, NULL)))
+	  {
+		appendStringInfoString(output, json);
+		bson_free(json);
+	  }
+	}
+}
+
+void
+DumpJsonArray(StringInfo output, BSON_ITERATOR *iter) {
+	char *json;
+	uint32_t len;
+	const uint8_t *data;
+	BSON bson;
+
+	bson_iter_array(iter, &len, &data);
+
+	if (bson_init_static(&bson, data, len))
+	{
+	  if((json = bson_array_as_json (&bson, NULL)))
+	  {
+		appendStringInfoString(output, json);
+		bson_free(json);
+	  }
+	}
+}
+#endif
 void
 DumpJson(StringInfo output, const char *bsonData, bool isArray)
 {

@@ -251,8 +251,13 @@ QueryDocument(Oid relationId, List *opExpressionList)
 
 	if (!BsonFinish(queryDocument))
 	{
+#ifdef META_DRIVER
+		ereport(ERROR, (errmsg("could not create document for query"),
+						errhint("BSON flags: %d", queryDocument->flags)));
+#else
 		ereport(ERROR, (errmsg("could not create document for query"),
 						errhint("BSON error: %d", queryDocument->err)));
+#endif
 	}
 
 	return queryDocument;
@@ -461,7 +466,20 @@ AppenMongoValue(BSON *queryDocument, const char *keyName, Datum value, bool isnu
 				len = VARSIZE_4B(result) - VARHDRSZ;
 				data = VARDATA_4B(result);
 			}
+#ifdef META_DRIVER
+                        if (strcmp(keyName, "_id") == 0)
+                        {
+                            bson_oid_t oid;
+                            bson_oid_init_from_data(&oid, data);
+                            status = BsonAppendOid(queryDocument, keyName, &oid);
+                        }
+                        else
+                        {
+			    status = BsonAppendBinary(queryDocument, keyName, data, len);
+                        }
+#else
 			status = BsonAppendBinary(queryDocument, keyName, data, len);
+#endif
 			break;
 		}
 		case NAMEOID:

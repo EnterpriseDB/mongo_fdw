@@ -13,20 +13,14 @@ MODULE_big = mongo_fdw
 # environment object file.
 #
 
-MONGO_DRIVER = mongo-c-meta-driver
-MONGO_PATH = $(MONGO_DRIVER)/src/mongoc
-MONGO_INCLUDE = -I$(MONGO_DRIVER)/src/libbson/src/bson/ -I$(MONGO_PATH)
-PG_CPPFLAGS = --std=c99 $(MONGO_INCLUDE)
-SHLIB_LINK = -L$(MONGO_DRIVER)/.libs -lmongoc-1.0
-SHLIB_LINK += -L$(MONGO_DRIVER)/src/libbson/.libs -lbson-1.0
+MONGO_INCLUDE = $(shell pkg-config --cflags libmongoc-1.0)
+PG_CPPFLAGS = --std=c99 $(MONGO_INCLUDE) -DMETA_DRIVER
+SHLIB_LINK = $(shell pkg-config --libs libmongoc-1.0)
 
 OBJS = connection.o option.o mongo_wrapper_meta.o mongo_fdw.o mongo_query.o
 
 EXTENSION = mongo_fdw
 DATA = mongo_fdw--1.0.sql
-
-$(MONGO_DRIVER)/%.os:
-	$(MAKE) -C $(MONGO_DRIVER) $*.os
 
 #
 # Users need to specify their Postgres installation path through pg_config. For

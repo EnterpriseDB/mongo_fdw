@@ -98,7 +98,11 @@ mongo_get_connection(ForeignServer *server, UserMapping *user, MongoFdwOptions *
 	}
 	if (entry->conn == NULL)
 	{
+#ifdef META_DRIVER
+		entry->conn = MongoConnect(opt->svr_address, opt->svr_port, opt->svr_database, opt->svr_username, opt->svr_password, opt->readPreference);
+#else
 		entry->conn = MongoConnect(opt->svr_address, opt->svr_port, opt->svr_database, opt->svr_username, opt->svr_password);
+#endif
 		elog(DEBUG3, "new mongo_fdw connection %p for server \"%s:%d\"",
 			 entry->conn, opt->svr_address, opt->svr_port);
 	}

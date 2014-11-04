@@ -49,12 +49,21 @@ Now compile time option is available to use legacy and Meta driver.  I am sure t
 are many other benefits of the new Mongo-C-driver that we are not leveraging but we
 will adopt those as we learn more about the new C driver.
 
+In order to use MongoDB driver 1.0.0+, take the following steps:
+
+  * clone `libbson` version 1.0.0+ (https://github.com/mongodb/libbson).  Follow install directions on that project's README.
+  * clone `libmongoc` version 1.0.0+ (https://github.com/mongodb/mongo-c-driver).  Follow the install directions, except make sure to also run `./configure --with-libbson=system` after running automake but before running make.  This should be the default behavior, but to be certain include this step.
+  * ensure pkg-config / pkgconf is installed on your system.
+  * run `make -f Makefile.meta && make -f Makefile.meta install`
+  * if you get an error when trying to `CREATE EXTENSION mongo_fdw;`, then try running `ldconfig`
+
 Usage
 -----
 The following parameters can be set on a MongoDB foreign server object:
 
   * **`address`**: the address or hostname of the MongoDB server Defaults to `127.0.0.1`
   * **`port`**: the port number of the MongoDB server. Defaults to `27017`
+  * **`read_preference`**: primary [default], secondary, primaryPreferred, secondaryPreferred, or nearest (meta driver only).  Defaults to `primary'
 
 The following parameters can be set on a MongoDB foreign table object:
 

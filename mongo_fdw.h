@@ -63,6 +63,44 @@
 	#define BSON_ITERATOR bson_iter_t
 	#define MONGO_CONN mongoc_client_t
 	#define MONGO_CURSOR mongoc_cursor_t
+	#define BSON_TYPE_DOCUMENT BSON_TYPE_DOCUMENT
+	#define BSON_TYPE_NULL BSON_TYPE_NULL
+	#define BSON_TYPE_ARRAY BSON_TYPE_ARRAY
+	#define BSON_TYPE_INT32 BSON_TYPE_INT32
+	#define BSON_TYPE_INT64 BSON_TYPE_INT64
+	#define BSON_TYPE_DOUBLE BSON_TYPE_DOUBLE
+	#define BSON_TYPE_BINDATA BSON_TYPE_BINARY
+	#define BSON_TYPE_BOOL BSON_TYPE_BOOL
+	#define BSON_TYPE_UTF8 BSON_TYPE_UTF8
+	#define BSON_TYPE_OID BSON_TYPE_OID
+	#define BSON_TYPE_DATE_TIME BSON_TYPE_DATE_TIME
+	#define BSON_TYPE_SYMBOL BSON_TYPE_SYMBOL
+	#define BSON_TYPE_UNDEFINED BSON_TYPE_UNDEFINED
+	#define BSON_TYPE_REGEX BSON_TYPE_REGEX
+	#define BSON_TYPE_CODE BSON_TYPE_CODE
+	#define BSON_TYPE_CODEWSCOPE BSON_TYPE_CODEWSCOPE
+	#define BSON_TYPE_TIMESTAMP BSON_TYPE_TIMESTAMP
+
+	#define PREF_READ_PRIMARY_NAME "readPrimary"
+	#define PREF_READ_SECONDARY_NAME "readSecondary"
+	#define PREF_READ_PRIMARY_PREFERRED_NAME "readPrimaryPreferred"
+	#define PREF_READ_SECONDARY_PREFERRED_NAME "readSecondaryPreferred"
+	#define PREF_READ_NEAREST_NAME "readNearest"
+
+	#define BSON_ITER_BOOL bson_iter_bool
+	#define BSON_ITER_DOUBLE bson_iter_double
+	#define BSON_ITER_INT32 bson_iter_int32
+	#define BSON_ITER_INT64 bson_iter_int64
+	#define BSON_ITER_OID bson_iter_oid
+	#define BSON_ITER_UTF8 bson_iter_utf8
+	#define BSON_ITER_REGEX bson_iter_regex
+	#define BSON_ITER_DATE_TIME bson_iter_date_time
+	#define BSON_ITER_CODE bson_iter_code
+	#define BSON_ITER_VALUE bson_iter_value
+	#define BSON_ITER_KEY bson_iter_key
+	#define BSON_ITER_NEXT bson_iter_next
+	#define BSON_ITER_TYPE bson_iter_type
+	#define BSON_ITER_BINARY bson_iter_binary
 #else
 	#define BSON bson
 	#define BSON_TYPE bson_type
@@ -80,6 +118,27 @@
 	#define BSON_TYPE_UTF8 BSON_STRING
 	#define BSON_TYPE_OID BSON_OID
 	#define BSON_TYPE_DATE_TIME BSON_DATE
+	#define BSON_TYPE_SYMBOL BSON_SYMBOL
+	#define BSON_TYPE_UNDEFINED BSON_UNDEFINED
+	#define BSON_TYPE_REGEX BSON_REGEX
+	#define BSON_TYPE_CODE BSON_CODE
+	#define BSON_TYPE_CODEWSCOPE BSON_CODEWSCOPE
+	#define BSON_TYPE_TIMESTAMP BSON_TIMESTAMP
+
+	#define BSON_ITER_BOOL bson_iterator_bool
+	#define BSON_ITER_DOUBLE bson_iterator_double
+	#define BSON_ITER_INT32 bson_iterator_int
+	#define BSON_ITER_INT64 bson_iterator_long
+	#define BSON_ITER_OID bson_iterator_oid
+	#define BSON_ITER_UTF8 bson_iterator_string
+	#define BSON_ITER_REGEX bson_iterator_regex
+	#define BSON_ITER_DATE_TIME bson_iterator_date
+	#define BSON_ITER_CODE bson_iterator_code
+	#define BSON_ITER_VALUE bson_iterator_value
+	#define BSON_ITER_KEY bson_iterator_key
+	#define BSON_ITER_NEXT bson_iterator_next
+	#define BSON_ITER_TYPE bson_iterator_type
+	#define BSON_ITER_BINARY bson_iterator_bin_data
 #endif
 
 /* Defines for valid option names */
@@ -89,6 +148,9 @@
 #define OPTION_NAME_COLLECTION "collection"
 #define OPTION_NAME_USERNAME "username"
 #define OPTION_NAME_PASSWORD "password"
+#ifdef META_DRIVER
+#define OPTION_NAME_READ_PREFERENCE "read_preference"
+#endif
 
 /* Default values for option parameters */
 #define DEFAULT_IP_ADDRESS "127.0.0.1"
@@ -118,12 +180,20 @@ typedef struct MongoValidOption
 
 
 /* Array of options that are valid for mongo_fdw */
+#ifdef META_DRIVER
+static const uint32 ValidOptionCount = 7;
+#else
 static const uint32 ValidOptionCount = 6;
+#endif
 static const MongoValidOption ValidOptionArray[] =
 {
 	/* foreign server options */
 	{ OPTION_NAME_ADDRESS, ForeignServerRelationId },
 	{ OPTION_NAME_PORT, ForeignServerRelationId },
+
+#ifdef META_DRIVER
+	{ OPTION_NAME_READ_PREFERENCE, ForeignServerRelationId },
+#endif
 
 	/* foreign table options */
 	{ OPTION_NAME_DATABASE, ForeignTableRelationId },
@@ -149,6 +219,9 @@ typedef struct MongoFdwOptions
 	char *collectionName;
 	char *svr_username;
 	char *svr_password;
+#ifdef META_DRIVER
+	char *readPreference;
+#endif
 } MongoFdwOptions;
 
 
@@ -161,23 +234,23 @@ typedef struct MongoFdwOptions
  */
 typedef struct MongoFdwModifyState
 {
-	Relation		rel;             /* relcache entry for the foreign table */
-	List			*target_attrs;   /* list of target attribute numbers */
+	Relation		rel;				/* relcache entry for the foreign table */
+	List			*target_attrs;		/* list of target attribute numbers */
 
 	/* info about parameters for prepared statement */
-	int			p_nums;			/* number of parameters to transmit */
-	FmgrInfo		*p_flinfo;		/* output conversion functions for them */
+	int				p_nums;				/* number of parameters to transmit */
+	FmgrInfo		*p_flinfo;			/* output conversion functions for them */
 
-	struct HTAB 		*columnMappingHash;
+	struct HTAB		*columnMappingHash;
 
 	MONGO_CONN		*mongoConnection;	/* MongoDB connection */
-	MONGO_CURSOR		*mongoCursor;		/* MongoDB cursor */
+	MONGO_CURSOR	*mongoCursor;		/* MongoDB cursor */
 	BSON			*queryDocument;		/* Bson Document */
 
-	MongoFdwOptions 	*options;
+	MongoFdwOptions	*options;
 
 	/* working memory context */
-	MemoryContext temp_cxt;				/* context for per-tuple temporary data */
+	MemoryContext	temp_cxt;			/* context for per-tuple temporary data */
 } MongoFdwModifyState;
 
 
@@ -202,7 +275,12 @@ extern void mongo_free_options(MongoFdwOptions *options);
 extern StringInfo mongo_option_names_string(Oid currentContextId);
 
 /* connection.c */
-MONGO_CONN* mongo_get_connection(ForeignServer *server, UserMapping *user, MongoFdwOptions *opt);
+#ifdef META_DRIVER
+MONGO_CONN * mongo_get_connection(ForeignServer *server, UserMapping *user, MongoFdwOptions *opt, char *readPreference);
+#else
+MONGO_CONN * mongo_get_connection(ForeignServer *server, UserMapping *user, MongoFdwOptions *opt);
+#endif
+
 extern void mongo_cleanup_connection(void);
 extern void mongo_release_connection(MONGO_CONN* conn);
 

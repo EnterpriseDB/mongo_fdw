@@ -26,7 +26,11 @@
 	#include "mongo.h"
 #endif
 
+#ifdef META_DRIVER
+MONGO_CONN* MongoConnect(const char* host, const unsigned short port, char *databaseName, char *user, char *password, char *readPreference);
+#else
 MONGO_CONN* MongoConnect(const char* host, const unsigned short port, char *databaseName, char *user, char *password);
+#endif
 void MongoDisconnect(MONGO_CONN* conn);
 bool MongoInsert(MONGO_CONN* conn, char* database, char *collection, BSON* b);
 bool MongoUpdate(MONGO_CONN* conn, char* database, char *collection, BSON* b, BSON* op);
@@ -47,8 +51,12 @@ int64_t BsonIterInt64(BSON_ITERATOR *it);
 double BsonIterDouble(BSON_ITERATOR *it);
 bool BsonIterBool(BSON_ITERATOR *it);
 const char* BsonIterString(BSON_ITERATOR *it);
+#ifdef META_DRIVER
+const char* BsonIterBinData(BSON_ITERATOR *it, uint32_t *len);
+#else
 const char* BsonIterBinData(BSON_ITERATOR *it);
 int BsonIterBinLen(BSON_ITERATOR *it);
+#endif
 const bson_oid_t * BsonIterOid(BSON_ITERATOR *it);
 time_t BsonIterDate(BSON_ITERATOR *it);
 const char* BsonIterKey(BSON_ITERATOR *it);
