@@ -31,7 +31,7 @@
 #include <bits.h>
 
 #ifdef META_DRIVER
-MONGO_CONN* MongoConnect(const char* host, const unsigned short port, char *databaseName, char *user, char *password, char *readPreference);
+MONGO_CONN* MongoConnect(const char* replSet, const char* host, const unsigned short port, char *databaseName, char *user, char *password, char *readPreference);
 #else
 MONGO_CONN* MongoConnect(const char* host, const unsigned short port, char *databaseName, char *user, char *password);
 #endif

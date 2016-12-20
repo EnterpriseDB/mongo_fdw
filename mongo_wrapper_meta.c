@@ -24,12 +24,16 @@
  * Connect to MongoDB server using Host/ip and Port number.
  */
 MONGO_CONN*
-MongoConnect(const char* host, const unsigned short port, char* databaseName, char *user, char *password, char *readPreference)
+MongoConnect(const char* replSet, const char* host, const unsigned short port, char* databaseName, char *user, char *password, char *readPreference)
 {
 	MONGO_CONN *client = NULL;
 	char* uri = NULL;
 
-	if (user && password && readPreference)
+	if (replSet && readPreference)
+                uri = bson_strdup_printf("mongodb://%s:%s@%s/%s?replicaSet=%s&readPreference=%s", user, password, host, databaseName, replSet, readPreference);
+        if (replSet)
+                uri = bson_strdup_printf("mongodb://%s:%s@%s/%s?replicaSet=%s", user, password, host, databaseName, replSet);
+        else if (user && password && readPreference)
 		uri = bson_strdup_printf ("mongodb://%s:%s@%s:%hu/%s?readPreference=%s", user, password, host, port, databaseName, readPreference);
 	else if (user && password)
 		uri = bson_strdup_printf ("mongodb://%s:%s@%s:%hu/%s", user, password, host, port, databaseName);

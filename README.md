@@ -62,7 +62,9 @@ The following parameters can be set on a MongoDB foreign server object:
 
   * **`address`**: the address or hostname of the MongoDB server Defaults to `127.0.0.1`
   * **`port`**: the port number of the MongoDB server. Defaults to `27017`
+  * **`replset`**: the replset name of MongoDB server. such as: '127.0.0.1:3717,192.168.0.1:4717', if use this option, the port option will be ignored.
   * **`read_preference`**: primary [default], secondary, primaryPreferred, secondaryPreferred, or nearest (meta driver only).  Defaults to `primary'
+  * **`force_server_id`**: force use mongo server's ObjectId() in column _id. Defaults to `true`
 
 The following parameters can be set on a MongoDB foreign table object:
 
@@ -87,7 +89,12 @@ CREATE EXTENSION mongo_fdw;
 -- create server object
 CREATE SERVER mongo_server
          FOREIGN DATA WRAPPER mongo_fdw
-         OPTIONS (address '127.0.0.1', port '27017');
+         OPTIONS (address '127.0.0.1', port '27017', force_server_id false);
+-- or create server object if you use replicaSet on mongo server
+-- the last uri is: mongodb://mongo_user:****@127.0.0.1:3717,127.0.0.1:4717/admin?replicaSet=replsetName-01&readPreference=secondary
+CREATE SERVER mongo_server
+         FOREIGN DATA WRAPPER mongo_fdw
+         OPTIONS (replset 'replsetName-01', address '127.0.0.1:3717,127.0.0.1:4717', read_preference 'secondary', force_server_id true);
 
 -- create user mapping
 CREATE USER MAPPING FOR postgres
