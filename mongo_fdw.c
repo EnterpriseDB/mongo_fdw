@@ -655,7 +655,7 @@ MongoPlanForeignModify(PlannerInfo *root,
 
 		for (attnum = 1; attnum <= tupdesc->natts; attnum++)
 		{
-			Form_pg_attribute attr = tupdesc->attrs[attnum - 1];
+			Form_pg_attribute attr = TupleDescAttr(tupdesc, attnum - 1);
 
 			if (!attr->attisdropped)
 				targetAttrs = lappend_int(targetAttrs, attnum);
@@ -746,7 +746,7 @@ MongoBeginForeignModify(ModifyTableState *mtstate,
 	foreach(lc, fmstate->target_attrs)
 	{
 		int attnum = lfirst_int(lc);
-		Form_pg_attribute attr = RelationGetDescr(rel)->attrs[attnum - 1];
+		Form_pg_attribute attr = TupleDescAttr(RelationGetDescr(rel), attnum - 1);
 
 		Assert(!attr->attisdropped);
 
@@ -814,13 +814,13 @@ MongoExecForeignInsert(EState *estate,
 			value = slot_getattr(slot, attnum, &isnull);
 
 			/* first column of MongoDB's foreign table must be _id */
-			if (strcmp(slot->tts_tupleDescriptor->attrs[0]->attname.data, "_id") != 0)
+			if (strcmp(TupleDescAttr(slot->tts_tupleDescriptor, 0)->attname.data, "_id") != 0)
 				elog(ERROR, "first column of MongoDB's foreign table must be \"_id\"");
 
 			if (typoid != NAMEOID)
 				elog(ERROR, "type of first column of MongoDB's foreign table must be \"NAME\"");
 
-			if (strcmp(slot->tts_tupleDescriptor->attrs[0]->attname.data, "__doc") == 0)
+			if (strcmp(TupleDescAttr(slot->tts_tupleDescriptor, 0)->attname.data, "__doc") == 0)
 				continue;
 
 			if (attnum == 1)
@@ -832,8 +832,8 @@ MongoExecForeignInsert(EState *estate,
 			}
 			else
 			{
-				AppenMongoValue(b, slot->tts_tupleDescriptor->attrs[attnum - 1]->attname.data, value,
-						isnull, slot->tts_tupleDescriptor->attrs[attnum -1]->atttypid);
+				AppenMongoValue(b, TupleDescAttr(slot->tts_tupleDescriptor, attnum - 1)->attname.data, value,
+						isnull, TupleDescAttr(slot->tts_tupleDescriptor, attnum - 1)->atttypid);
 			}
 		}
 	}
@@ -866,7 +866,7 @@ MongoAddForeignUpdateTargets(Query *parsetree,
 	 * What we need is the rowid which is the first column
 	 */
 	Form_pg_attribute attr =
-				RelationGetDescr(target_relation)->attrs[0];
+				TupleDescAttr(RelationGetDescr(target_relation), 0);
 
 	/* Make a Var representing the desired value */
 	var = makeVar(parsetree->resultRelation,
@@ -950,19 +950,19 @@ MongoExecForeignUpdate(EState *estate,
 			Datum value;
 			bool isnull;
 
-			if (strcmp("_id", slot->tts_tupleDescriptor->attrs[attnum - 1]->attname.data) == 0)
+			if (strcmp("_id", TupleDescAttr(slot->tts_tupleDescriptor, attnum - 1)->attname.data) == 0)
 				continue;
 
-			if (strcmp("__doc", slot->tts_tupleDescriptor->attrs[attnum - 1]->attname.data) == 0)
+			if (strcmp("__doc", TupleDescAttr(slot->tts_tupleDescriptor, attnum - 1)->attname.data) == 0)
 				elog(ERROR, "system column '__doc' update is not supported");
 
 			value = slot_getattr(slot, attnum, &isnull);
 #ifdef META_DRIVER
-			AppenMongoValue(&set, slot->tts_tupleDescriptor->attrs[attnum - 1]->attname.data, value,
-							isnull ? true : false, slot->tts_tupleDescriptor->attrs[attnum - 1]->atttypid);
+			AppenMongoValue(&set, TupleDescAttr(slot->tts_tupleDescriptor, attnum - 1)->attname.data, value,
+							isnull ? true : false, TupleDescAttr(slot->tts_tupleDescriptor, attnum - 1)->atttypid);
 #else
-			AppenMongoValue(b, slot->tts_tupleDescriptor->attrs[attnum - 1]->attname.data, value,
-							isnull ? true : false, slot->tts_tupleDescriptor->attrs[attnum - 1]->atttypid);
+			AppenMongoValue(b, TupleDescAttr(slot->tts_tupleDescriptor, attnum - 1)->attname.data, value,
+							isnull ? true : false, TupleDescAttr(slot->tts_tupleDescriptor, attnum - 1)->atttypid);
 #endif
 		}
 	}
@@ -1964,7 +1964,6 @@ MongoAcquireSampleRows(Relation relation, int errorLevel,
 	bool                     *columnNulls = NULL;
 	Oid                      foreignTableId = InvalidOid;
 	TupleDesc                tupleDescriptor = NULL;
-	Form_pg_attribute        *attributesPtr = NULL;
 	AttrNumber               columnCount = 0;
 	AttrNumber               columnId = 0;
 	HTAB                     *columnMappingHash = NULL;
@@ -1983,7 +1982,6 @@ MongoAcquireSampleRows(Relation relation, int errorLevel,
 	/* create list of columns in the relation */
 	tupleDescriptor = RelationGetDescr(relation);
 	columnCount = tupleDescriptor->natts;
-	attributesPtr = tupleDescriptor->attrs;
 
 	for (columnId = 1; columnId <= columnCount; columnId++)
 	{
@@ -1991,8 +1989,8 @@ MongoAcquireSampleRows(Relation relation, int errorLevel,
 
 		/* only assign required fields for column mapping hash */
 		column->varattno = columnId;
-		column->vartype = attributesPtr[columnId-1]->atttypid;
-		column->vartypmod = attributesPtr[columnId-1]->atttypmod;
+		column->vartype = TupleDescAttr(tupleDescriptor, columnId - 1)->atttypid;
+		column->vartypmod = TupleDescAttr(tupleDescriptor, columnId - 1)->atttypmod;
 
 		columnList = lappend(columnList, column);
 	}
