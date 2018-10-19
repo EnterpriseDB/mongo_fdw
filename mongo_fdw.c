@@ -932,7 +932,11 @@ MongoExecForeignUpdate(EState *estate,
 	/* Get the id that was passed up as a resjunk column */
 	datum = ExecGetJunkAttribute(planSlot, 1, &isNull);
 
+#if (PG_VERSION_NUM >= 110000)
+	columnName = get_attname(foreignTableId, 1, false);
+#else
 	columnName = get_relid_attribute_name(foreignTableId, 1);
+#endif
 
 	typoid = get_atttype(foreignTableId, 1);
 
@@ -1032,7 +1036,11 @@ MongoExecForeignDelete(EState *estate,
 	/* Get the id that was passed up as a resjunk column */
 	datum = ExecGetJunkAttribute(planSlot, 1, &isNull);
 
+#if (PG_VERSION_NUM >= 110000)
+	columnName = get_attname(foreignTableId, 1, false);
+#else
 	columnName = get_relid_attribute_name(foreignTableId, 1);
+#endif
 
 	typoid = get_atttype(foreignTableId, 1);
 
@@ -1148,7 +1156,11 @@ ColumnMappingHash(Oid foreignTableId, List *columnList)
 		bool handleFound = false;
 		void *hashKey = NULL;
 
+#if (PG_VERSION_NUM >= 110000)
+		columnName = get_attname(foreignTableId, columnId, false);
+#else
 		columnName = get_relid_attribute_name(foreignTableId, columnId);
+#endif
 		hashKey = (void *) columnName;
 
 		columnMapping = (ColumnMapping *) hash_search(columnMappingHash, hashKey,
