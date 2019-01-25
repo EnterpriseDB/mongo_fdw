@@ -282,6 +282,13 @@ BsonIterDouble(BSON_ITERATOR *it)
 
 
 bool
+BsonIterDecimal128(BSON_ITERATOR *it, bson_decimal128_t *dec)
+{
+  return bson_iter_decimal128(it, dec);
+}
+
+
+bool
 BsonIterBool(BSON_ITERATOR *it)
 {
 	return bson_iter_bool(it);

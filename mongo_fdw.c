@@ -1403,7 +1403,7 @@ ColumnTypesCompatible(BSON_TYPE bsonType, Oid columnTypeId)
 		case FLOAT8OID: case NUMERICOID:
 		{
 			if (bsonType == BSON_TYPE_INT32 || bsonType == BSON_TYPE_INT64 ||
-				bsonType == BSON_TYPE_DOUBLE)
+				bsonType == BSON_TYPE_DOUBLE || bsonType == BSON_TYPE_DECIMAL128)
 			{
 				compatibleTypes = true;
 			}
@@ -1594,11 +1594,13 @@ ColumnValue(BSON_ITERATOR *bsonIterator, Oid columnTypeId, int32 columnTypeMod)
 		}
 		case NUMERICOID:
 		{
-			float8 value = BsonIterDouble(bsonIterator);
-			Datum valueDatum = Float8GetDatum(value);
+      bson_decimal128_t dec;
+      char string[BSON_DECIMAL128_STRING];
+      bool value = BsonIterDecimal128(bsonIterator, &dec);
+      bson_decimal128_to_string (&dec, string);
 
 			/* overlook type modifiers for numeric */
-			columnValue = DirectFunctionCall1(float8_numeric, valueDatum);
+			columnValue = DirectFunctionCall3(numeric_in, CStringGetDatum(string), 0, -1);
 			break;
 		}
 		case BOOLOID:
