@@ -100,16 +100,16 @@ CREATE SERVER mongo_server
 
 -- create user mapping
 CREATE USER MAPPING FOR postgres
-		 SERVER mongo_server
-		 OPTIONS (username 'mongo_user', password 'mongo_pass');
+         SERVER mongo_server
+         OPTIONS (username 'mongo_user', password 'mongo_pass');
 
 -- create foreign table
 CREATE FOREIGN TABLE warehouse(
-		 _id NAME,
+         _id NAME,
          warehouse_id int,
          warehouse_name text,
          warehouse_created timestamptz)
-SERVER mongo_server
+         SERVER mongo_server
          OPTIONS (database 'db', collection 'warehouse');
 
 -- Note: first column of the table must be "_id" of type "NAME".
