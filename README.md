@@ -36,7 +36,7 @@ The third enhancement is to add a new [MongoDB][1]' C driver. The current implem
 
 In order to use MongoDB driver 1.0.0+, take the following steps:
 
-  * clone `libbson` version 1.0.0+ (https://github.com/mongodb/libbson).  Follow install directions on that project's README.
+  * clone `libbson` version 1.0.0+ (https://github.com/mongodb/mongo-c-driver/tree/master/src/libbson).  Follow install directions on that project's README.
   * clone `libmongoc` version 1.0.0+ (https://github.com/mongodb/mongo-c-driver).  Follow the install directions, except make sure to also run `./configure --with-libbson=system` after running automake but before running make.  This should be the default behavior, but to be certain include this step.
   * ensure pkg-config / pkgconf is installed on your system.
   * run `make -f Makefile.meta && make -f Makefile.meta install`
