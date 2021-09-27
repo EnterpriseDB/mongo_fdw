@@ -66,7 +66,7 @@ statements for the foreign tables using the mongo_fdw.
 
 ### Connection Pooling
 The latest version comes with a connection pooler that utilizes the
-same mango database connection for all the queries in the same session.
+same MongoDB database connection for all the queries in the same session.
 The previous version would open a new [MongoDB][1] connection for every
 query. This is a performance enhancement.
 
