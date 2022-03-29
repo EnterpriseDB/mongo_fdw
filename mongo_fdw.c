@@ -1875,7 +1875,8 @@ column_types_compatible(BSON_TYPE bsonType, Oid columnTypeId)
 			 * object identifier.  We can safely overload this 64-byte data
 			 * type since it's reserved for internal use in PostgreSQL.
 			 */
-			if (bsonType == BSON_TYPE_OID)
+			if (bsonType == BSON_TYPE_OID ||
+				bsonType == BSON_TYPE_UTF8)
 				compatibleTypes = true;
 			break;
 		case DATEOID:
@@ -2073,14 +2074,33 @@ column_value(BSON_ITERATOR *bsonIterator, Oid columnTypeId,
 			break;
 		case NAMEOID:
 			{
-				char		value[NAMEDATALEN];
+				const char *name_val;
+				BSON_TYPE	bsonType = bsonIterType(bsonIterator);
 				Datum		valueDatum = 0;
 
-				bson_oid_t *bsonObjectId = (bson_oid_t *) bsonIterOid(bsonIterator);
+				switch (bsonType)
+				{
+					case BSON_TYPE_OID:
+						{
+							char		value[NAMEDATALEN];
+							bson_oid_t *bsonObjectId = (bson_oid_t *) bsonIterOid(bsonIterator);
 
-				bson_oid_to_string(bsonObjectId, value);
-
-				valueDatum = CStringGetDatum(value);
+							bson_oid_to_string(bsonObjectId, value);
+							name_val = value;
+						}
+						break;
+					case BSON_TYPE_UTF8:
+						{
+							name_val = bsonIterString(bsonIterator);
+						}
+						break;
+					default:
+						ereport(ERROR,
+							(errcode(ERRCODE_FDW_INVALID_DATA_TYPE),
+							errmsg("cannot convert BSON type to column type"),
+							errhint("Column type: %u", (uint32) columnTypeId)));
+				}
+				valueDatum = CStringGetDatum(name_val);
 				columnValue = DirectFunctionCall3(namein, valueDatum,
 												  ObjectIdGetDatum(InvalidOid),
 												  Int32GetDatum(columnTypeMod));
