@@ -368,13 +368,13 @@ bsonIterInt32(BSON_ITERATOR *it)
 			{
 				int64		val = bson_iter_int64(it);
 
-				if (val < PG_INT32_MIN || val > PG_INT32_MAX)
+				if (val < PG_INT64_MIN || val > PG_INT64_MAX)
 					ereport(ERROR,
 							(errcode(ERRCODE_NUMERIC_VALUE_OUT_OF_RANGE),
 							 errmsg("value \"%ld\" is out of range for type integer",
 									val)));
 
-				return (int32) val;
+				return (int64) val;
 			}
 		case BSON_TYPE_INT32:
 			return bson_iter_int32(it);
