@@ -1334,7 +1334,15 @@ SELECT a FROM f_test_tbl6 ORDER BY 1;
 (4 rows)
 
 SELECT a FROM f_test_tbl7 ORDER BY 1;
-ERROR:  value "9999999999" is out of range for type integer
+     a      
+------------
+          0
+         25
+         25
+         25
+ 1410065407
+(5 rows)
+
 -- Cleanup
 DELETE FROM f_mongo_test WHERE a != 0;
 DROP TABLE l_test_tbl1;
