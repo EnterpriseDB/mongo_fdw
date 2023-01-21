@@ -6,6 +6,25 @@ libraries are needed. To build and install `mongo-c` and `json-c` libraries, the
 are two ways. You can either use script `autogen.sh` or you can manually
 perform all required steps listed.
 
+### Notes about new MongoDB C Driver support
+This enhancement is to add a new [MongoDB][1]' C driver. The current
+implementation is based on the legacy driver of MongoDB. But
+[MongoDB][1] is provided completely new library for driver called
+MongoDB's meta driver. Added support for the same. Now compile time
+option is available to use legacy and meta driver.
+
+In order to use MongoDB driver 1.17.0+, take the following steps:
+
+  * clone `libmongoc` version 1.17.0+
+    (https://github.com/mongodb/mongo-c-driver) and follow the install
+    directions given there.  `libbson` is now maintained in a subdirectory
+    of the `libmongoc`.
+    (https://github.com/mongodb/mongo-c-driver/tree/master/src/libbson).
+  * ensure pkg-config / pkgconf is installed on your system.
+  * run `make -f Makefile.meta && make -f Makefile.meta install`
+  * if you get an error when trying to `CREATE EXTENSION `mongo_fdw`;`,
+    then try running `ldconfig`
+
 ## Installation using script
 Number of manual steps needs to be performed to compile and install required
 mongo-c and json-c libraries. If you want to avoid the manual steps, there is a
