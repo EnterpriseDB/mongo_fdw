@@ -466,7 +466,7 @@ your option) any later version.
 See the [`LICENSE`][4] file for full details.
 
 [1]: http://www.mongodb.com
-[2]: https://github.com/enterprisedb/`mongo_fdw`/issues/new
+[2]: https://github.com/enterprisedb/mongo_fdw/issues/new
 [3]: CONTRIBUTING.md
 [4]: LICENSE
 [5]: http://mongoc.org/libmongoc/1.17.3/installing.html#configuring-the-build
