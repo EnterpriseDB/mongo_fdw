@@ -429,6 +429,11 @@ out the contribution guidelines [here][3].
 Useful links
 ------------
 
+### Source code
+
+Reference FDW realisation, `postgres_fdw`
+ - https://git.postgresql.org/gitweb/?p=postgresql.git;a=tree;f=contrib/postgres_fdw;hb=HEAD
+
 ### General FDW Documentation
 
  - https://www.postgresql.org/docs/current/ddl-foreign-data.html
