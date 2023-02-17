@@ -5,6 +5,8 @@ This is a foreign data wrapper (FDW) to connect [PostgreSQL](https://www.postgre
 to [MongoDB](https://www.mongodb.com/). This version of `mongo_fdw` works with PostgreSQL and EDB
 Postgres Advanced Server 10, 11, 12, 13, 14, and 15.
 
+<img src="https://upload.wikimedia.org/wikipedia/commons/2/29/Postgresql_elephant.svg" align="center" height="100" alt="PostgreSQL"/>	+	<img src="https://www.tutorialsteacher.com/Content/images/home/mongodb.svg" align="center" height="100" alt="MongoDB"/>
+
 Contents
 --------
 
@@ -18,9 +20,8 @@ Contents
 8. [Character set handling](#character-set-handling)
 9. [Examples](#examples)
 10. [Limitations](#limitations)
-11. [TAP tests](#tap-tests)
-12. [Development roadmap](#development-roadmap)
-13. [Useful links](#useful-links)
+11. [Contributing](#contributing)
+12. [Useful links](#useful-links)
 
 Features
 --------
@@ -99,18 +100,18 @@ Usage
 
 `mongo_fdw` accepts the following options via the `CREATE SERVER` command:
 
-- **address** as *string*, optional
+- **address** as *string*, optional, default `127.0.0.1`
 
-  Address or hostname of the MongoDB server. Defaults to `127.0.0.1`.
+  Address or hostname of the MongoDB server.
 
-- **port** as *integer*, optioanl
+- **port** as *integer*, optional, default `27017`.
 
-  Port number of the MongoDB server. Defaults to `27017`.
+  Port number of the MongoDB server.
   
-- **use_remote_estimate** as *boolean*, optioanl
+- **use_remote_estimate** as *boolean*, optional, default `false`
 
   Controls whether `mongo_fdw` uses exact rows from
-    remote collection to obtain cost estimates. Default is `false`.
+    remote collection to obtain cost estimates.
 
 The following options are _only supported with meta driver_:
 
@@ -125,15 +126,14 @@ The following options are _only supported with meta driver_:
     driver will auto-connect to correct primary in the replica set when
     writing.
 
-- **read_preference** as *string*, optional
+- **read_preference** as *string*, optional, default `primary`
 
-  `primary` (default), `secondary`, `primaryPreferred`,
+  `primary`, `secondary`, `primaryPreferred`,
     `secondaryPreferred`, or `nearest`.
 
-- **ssl** as *boolean*, optional
-
-  `false` is default, `true` to enable ssl. See
-    http://mongoc.org/libmongoc/current/mongoc_ssl_opt_t.html to
+- **ssl** as *boolean*, optional, default `false`
+  
+  Enable ssl. See http://mongoc.org/libmongoc/current/mongoc_ssl_opt_t.html to
     understand the options.
 
 - **pem_file** as *string*, optional
@@ -158,13 +158,12 @@ The following options are _only supported with meta driver_:
 
   The .pem file that contains the Certificate Revocation List.
 
-- **weak_cert_validation** as *boolean*, optional
+- **weak_cert_validation** as *boolean*, optional, default `false`
 
-  `false` is default, This is to enable or disable the
-    validation checks for TLS/SSL certificates and allows the use of invalid
-	certificates to connect if set to `true`.
+    Enable the validation checks for TLS/SSL certificates and allows the use of invalid
+    certificates to connect if set to `true`.
 
-- **enable_join_pushdown** as *boolean*, optional
+- **enable_join_pushdown** as *boolean*, optional, default `true`
 
   If `true`, pushes the join between two foreign
 	tables from the same foreign server, instead of fetching all the rows
@@ -172,26 +171,26 @@ The following options are _only supported with meta driver_:
 	be set for an individual table, and if any of the tables involved in the
 	join has set it to false then the join will not be pushed down. The
 	table-level value of the option takes precedence over the server-level
-	option value. Default is `true`.
+	option value.
 
-- **enable_aggregate_pushdown** as *boolean*, optional
+- **enable_aggregate_pushdown** as *boolean*, optional, default `true`
 
   If `true`, push aggregates to the remote
 	MongoDB server instead of fetching all of the rows and aggregating them
 	locally. This option can also be set for an individual table. The
 	table-level value of the option takes precedence over the server-level
-	option value. Default is `true`.
+	option value.
 
 ## CREATE USER MAPPING options
 
 `mongo_fdw` accepts the following options via the `CREATE USER MAPPING`
 command:
 
-- **username**
+- **username** as *string*, optional
 
   Username to use when connecting to MongoDB.
 
-- **password**
+- **password** as *string*, optional
 
   Password to authenticate to the MongoDB server.
   
@@ -200,25 +199,22 @@ command:
 `mongo_fdw` accepts the following table-level options via the
 `CREATE FOREIGN TABLE` command:
 
-- **database** as *string*, optional.
+- **database** as *string*, optional, default `test`
 
-  Name of the MongoDB database to query. Defaults to
-    `test`.
+  Name of the MongoDB database to query.
 
-- **collection** as *string*, optional.
+- **collection** as *string*, optional, default name of foreign table
 
-  Name of the MongoDB collection to query. Defaults to
-    the foreign table name used in the relevant `CREATE` command.
+  Name of the MongoDB collection to query.
 
-- **enable_join_pushdown** as *boolean*, optional
+- **enable_join_pushdown** as *boolean*, optional, default `true`
 
   Similar to the server-level option, but can be
-    configured at table level as well. Default is `true`.
+    configured at table level as well.
 
-- **enable_aggregate_pushdown** as *boolean*, optional
+- **enable_aggregate_pushdown** as *boolean*, optional, default `true`
 
-  Similar to the server-level option, but
-    can be configured at table level as well. Default is `true`.
+  Similar to the server-level option, but can be configured at table level as well.
     
 No column-level options are available.
 
@@ -255,7 +251,7 @@ columns (PostgreSQL 12+).
 
 **Behaviour with generated columns yet not tested and not described**.
 
-Note that while `mongo_fdw` will insert or update the generated column value
+Note that while `mongo_fdw` will `INSERT` or `UPDATE` the generated column value
 in MongoDB, there is nothing to stop the value being modified within MongoDB,
 and hence no guarantee that in subsequent `SELECT` operations the column will
 still contain the expected generated value. This limitation also applies to
@@ -287,61 +283,85 @@ isn't provided, the wrapper uses the default value mentioned above.
 them when estimating costs for the query execution plan. To see selected
 execution plans for a query, just run `EXPLAIN`.
 
-Install the extension (superuser only):
+### Install the extension:
 
-    CREATE EXTENSION mongo_fdw;
+Once for a database you need, as PostgreSQL superuser.
 
-Create a foreign server with appropriate configuration (superuser only):
+```sql
+	CREATE EXTENSION mongo_fdw;
+```
 
-    CREATE SERVER "MongoDB server"
-      FOREIGN DATA WRAPPER mongo_fdw
-      OPTIONS (
-        address '127.0.0.1',
-        port '27017'
-     );
+### Create a foreign server with appropriate configuration:
+
+Once for a foreign datasource you need, as PostgreSQL superuser.
+
+```sql
+    	CREATE SERVER "MongoDB server"
+	FOREIGN DATA WRAPPER mongo_fdw
+	OPTIONS (
+          address '127.0.0.1',
+          port '27017'
+	);
+```
+
+### Grant usage on foreign server to normal user in PostgreSQL:
+
+Once for a normal user (non-superuser) in PostgreSQL, as PostgreSQL superuser. It is a good idea to use a superuser only where really necessary, so let's allow a normal user to use the foreign server (this is not required for the example to work, but it's secirity recomedation).
+
+```sql
+	GRANT USAGE ON FOREIGN SERVER "MongoDB server" TO pguser;
+```
+Where `pguser` is a sample user for works with foreign server (and foreign tables).
+
+### User mapping
 
 Create an appropriate user mapping:
+```sql
+    	CREATE USER MAPPING
+	FOR pguser
+	SERVER "MongoDB server"
+    	OPTIONS (
+	  username 'mongo_user',
+	  password 'mongo_pass'
+	);
+```
+Where `pguser` is a sample user for works with foreign server (and foreign tables).
 
-    CREATE USER MAPPING FOR CURRENT_USER SERVER "MongoDB server"
-		OPTIONS(
-			username 'mongo_user',
-			password 'mongo_pass'
-			);
-	
-
-Grant usage on MongoDB server to non privileged user by your choice if necessary (recommended):
-	
-	GRANT USAGE ON FOREIGN SERVER "MongoDB server" TO your_user;
-
+### Create foreign table
+All `CREATE FOREIGN TABLE` SQL commands can be executed as a normal PostgreSQL user if there were correct `GRANT USAGE ON FOREIGN SERVER`. No need PostgreSQL supersuer for secirity reasons but also works with PostgreSQL supersuer.
 
 Create a foreign table referencing the MongoDB collection:
 
-    -- Note: first column of the table must be "_id" of type "name".
-    CREATE FOREIGN TABLE warehouse
-	(
-		_id name,
-		warehouse_id int,
-		warehouse_name text,
-		warehouse_created timestamptz
+```sql
+	-- Note: first column of the table must be "_id" of type "name".
+	CREATE FOREIGN TABLE warehouse (
+	  _id name,
+	  warehouse_id int,
+	  warehouse_name text,
+	  warehouse_created timestamptz
 	)
 	SERVER "MongoDB server"
 	OPTIONS (
-		database 'db',
-		collection 'warehouse'
-		);
+	  database 'db',
+	  collection 'warehouse'
+	);
+```
 
+### Typical examples with [MongoDB][1]'s equivalent statements.
 
-Other examples with [MongoDB][1]'s equivalent statements.
-
+#### `SELECT`
 ```sql
-
--- select from table
-SELECT * FROM warehouse WHERE warehouse_id = 1;
+	SELECT *
+	  FROM warehouse
+	 WHERE warehouse_id = 1;
+```
+```
            _id            | warehouse_id | warehouse_name |     warehouse_created
 --------------------------+--------------+----------------+---------------------------
  53720b1904864dc1f5a571a0 |            1 | UPS            | 2014-12-12 12:42:10+05:30
 (1 row)
-
+```
+```
 db.warehouse.find
 (
 	{
@@ -354,13 +374,14 @@ db.warehouse.find
 	"warehouse_name" : "UPS",
 	"warehouse_created" : ISODate("2014-12-12T07:12:10Z")
 }
-
--- insert row in table
+```
+#### `INSERT`
+```sql
 INSERT INTO warehouse VALUES (0, 2, 'Laptop', '2015-11-11T08:13:10Z');
-
 -- Note: The given value for "_id" column will be ignored and allows MongoDB to
 -- insert the unique value for the "_id" column.
-
+```
+```
 db.warehouse.insert
 (
 	{
@@ -369,20 +390,28 @@ db.warehouse.insert
 		"warehouse_created" : ISODate("2015-11-11T08:13:10Z")
 	}
 )
-
--- delete row from table
-DELETE FROM warehouse WHERE warehouse_id = 2;
-
+```
+#### `DELETE`
+```sql
+DELETE
+  FROM warehouse
+ WHERE warehouse_id = 2;
+```
+```
 db.warehouse.remove
 (
 	{
 		"warehouse_id" : 2
 	}
 )
-
--- update a row of table
-UPDATE warehouse SET warehouse_name = 'UPS_NEW' WHERE warehouse_id = 1;
-
+```
+### `UPDATE`
+```sql
+UPDATE warehouse
+   SET warehouse_name = 'UPS_NEW'
+ WHERE warehouse_id = 1;
+```
+```
 db.warehouse.update
 (
 	{
@@ -394,19 +423,21 @@ db.warehouse.update
 		"warehouse_created" : ISODate("2014-12-12T07:12:10Z")
 	}
 )
-
--- explain a table
+```
+#### `EXPLAIN`, `ANALYZE`
+```sql
 EXPLAIN SELECT * FROM warehouse WHERE warehouse_id = 1;
+```
+```
                            QUERY PLAN
 -----------------------------------------------------------------
  Foreign Scan on warehouse  (cost=0.00..0.00 rows=1000 width=84)
    Filter: (warehouse_id = 1)
    Foreign Namespace: db.warehouse
 (3 rows)
-
--- collect data distribution statistics
+```
+```
 ANALYZE warehouse;
-
 ```
 
 Limitations
