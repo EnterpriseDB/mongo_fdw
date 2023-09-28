@@ -4,7 +4,7 @@
  * 		Foreign-data wrapper for remote MongoDB servers
  *
  * Portions Copyright (c) 2012-2014, PostgreSQL Global Development Group
- * Portions Copyright (c) 2004-2022, EnterpriseDB Corporation.
+ * Portions Copyright (c) 2004-2023, EnterpriseDB Corporation.
  * Portions Copyright (c) 2012–2014 Citus Data, Inc.
  *
  * IDENTIFICATION
@@ -158,6 +158,7 @@
 #define OPTION_NAME_WEAK_CERT 				"weak_cert_validation"
 #define OPTION_NAME_ENABLE_JOIN_PUSHDOWN	"enable_join_pushdown"
 #define OPTION_NAME_ENABLE_AGGREGATE_PUSHDOWN "enable_aggregate_pushdown"
+#define OPTION_NAME_ENABLE_ORDER_BY_PUSHDOWN "enable_order_by_pushdown"
 #endif
 
 /* Default values for option parameters */
@@ -203,7 +204,7 @@ typedef struct MongoValidOption
 
 /* Array of options that are valid for mongo_fdw */
 #ifdef META_DRIVER
-static const uint32 ValidOptionCount = 21;
+static const uint32 ValidOptionCount = 23;
 #else
 static const uint32 ValidOptionCount = 7;
 #endif
@@ -227,6 +228,7 @@ static const MongoValidOption ValidOptionArray[] =
 	{OPTION_NAME_WEAK_CERT, ForeignServerRelationId},
 	{OPTION_NAME_ENABLE_JOIN_PUSHDOWN, ForeignServerRelationId},
 	{OPTION_NAME_ENABLE_AGGREGATE_PUSHDOWN, ForeignServerRelationId},
+	{OPTION_NAME_ENABLE_ORDER_BY_PUSHDOWN, ForeignServerRelationId},
 #endif
 
 	/* Foreign table options */
@@ -235,6 +237,7 @@ static const MongoValidOption ValidOptionArray[] =
 #ifdef META_DRIVER
 	{OPTION_NAME_ENABLE_JOIN_PUSHDOWN, ForeignTableRelationId},
 	{OPTION_NAME_ENABLE_AGGREGATE_PUSHDOWN, ForeignTableRelationId},
+	{OPTION_NAME_ENABLE_ORDER_BY_PUSHDOWN, ForeignTableRelationId},
 #endif
 
 	/* User mapping options */
@@ -269,6 +272,7 @@ typedef struct MongoFdwOptions
 	bool		weak_cert_validation;
 	bool		enable_join_pushdown;
 	bool		enable_aggregate_pushdown;
+	bool		enable_order_by_pushdown;
 #endif
 } MongoFdwOptions;
 
@@ -372,6 +376,9 @@ typedef struct MongoFdwRelationInfo
 	 * pushable.
 	 */
 	bool		is_agg_scanrel_pushable;
+
+	/* Inherit required flags from MongoFdwOptions */
+	bool		is_order_by_pushable;
 } MongoFdwRelationInfo;
 
 /*

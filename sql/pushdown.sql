@@ -3,10 +3,9 @@
 \set MONGO_USER_NAME	`echo \'"$MONGO_USER_NAME"\'`
 \set MONGO_PASS			`echo \'"$MONGO_PWD"\'`
 
--- Before running this file User must create database mongo_fdw_regress and
--- mongo_fdw_regress1 databases on MongoDB with all permission for
--- MONGO_USER_NAME user with MONGO_PASS password and ran mongodb_init.sh file
--- to load collections.
+-- Before running this file user must create database mongo_fdw_regress on
+-- MongoDB with all permission for MONGO_USER_NAME user with MONGO_PASS
+-- password and ran mongodb_init.sh file to load collections.
 
 \c contrib_regression
 CREATE EXTENSION IF NOT EXISTS mongo_fdw;
@@ -319,6 +318,51 @@ EXPLAIN (COSTS FALSE, VERBOSE)
 SELECT * FROM f_mongo_test ORDER BY a USING OPERATOR(public.<^);
 EXPLAIN (COSTS FALSE, VERBOSE)
 SELECT MIN(a) FROM f_mongo_test ORDER BY 1 USING OPERATOR(public.<^);
+
+-- FDW-589: Test enable_order_by_pushdown option at server and table level.
+-- Test the option at server level.
+-- Check only boolean values are accepted.
+ALTER SERVER mongo_server OPTIONS (ADD enable_order_by_pushdown 'abc11');
+ALTER SERVER mongo_server OPTIONS (ADD enable_order_by_pushdown 'false');
+EXPLAIN (VERBOSE, COSTS FALSE)
+SELECT c1, c4 FROM f_test_tbl1
+  WHERE c1 > c4
+  ORDER BY c1 ASC NULLS FIRST;
+ALTER SERVER mongo_server OPTIONS (SET enable_order_by_pushdown 'true');
+EXPLAIN (VERBOSE, COSTS FALSE)
+SELECT c1, c4 FROM f_test_tbl1
+  WHERE c1 > c4
+  ORDER BY c1 ASC NULLS FIRST;
+-- Test that setting option at table level does not affect the setting at
+-- server level.
+ALTER SERVER mongo_server OPTIONS (SET enable_order_by_pushdown 'false');
+-- Test the option at table level.
+ALTER FOREIGN TABLE f_test_tbl1 OPTIONS (ADD enable_order_by_pushdown 'true');
+EXPLAIN (VERBOSE, COSTS FALSE)
+SELECT c1, c4 FROM f_test_tbl1
+  WHERE c1 > c4
+  ORDER BY c1 ASC NULLS FIRST;
+SELECT c1, c4 FROM f_test_tbl1
+  WHERE c1 > c4
+  ORDER BY c1 ASC NULLS FIRST;
+ALTER FOREIGN TABLE f_test_tbl1 OPTIONS (SET enable_order_by_pushdown 'false');
+EXPLAIN (VERBOSE, COSTS FALSE)
+SELECT c1, c4 FROM f_test_tbl1
+  WHERE c1 > c4
+  ORDER BY c1 ASC NULLS FIRST;
+SELECT c1, c4 FROM f_test_tbl1
+  WHERE c1 > c4
+  ORDER BY c1 ASC NULLS FIRST;
+ALTER SERVER mongo_server OPTIONS (SET enable_order_by_pushdown 'true');
+ALTER FOREIGN TABLE f_test_tbl1 OPTIONS (SET enable_order_by_pushdown 'true');
+
+-- FDW-631: Test pushdown of boolean expression
+EXPLAIN (VERBOSE, COSTS FALSE)
+SELECT name, pass FROM f_test_tbl3 WHERE pass = false ORDER BY name;
+SELECT name, pass FROM f_test_tbl3 WHERE pass = false ORDER BY name;
+EXPLAIN (VERBOSE, COSTS FALSE)
+SELECT name, pass FROM f_test_tbl3 WHERE pass = true ORDER BY name;
+SELECT name, pass FROM f_test_tbl3 WHERE pass = true ORDER BY name;
 
 -- Cleanup
 DELETE FROM f_mongo_test WHERE a != 0;

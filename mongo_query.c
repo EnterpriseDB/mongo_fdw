@@ -4,7 +4,7 @@
  * 		FDW query handling for mongo_fdw
  *
  * Portions Copyright (c) 2012-2014, PostgreSQL Global Development Group
- * Portions Copyright (c) 2004-2022, EnterpriseDB Corporation.
+ * Portions Copyright (c) 2004-2023, EnterpriseDB Corporation.
  * Portions Copyright (c) 2012–2014 Citus Data, Inc.
  *
  * IDENTIFICATION
@@ -100,6 +100,10 @@ static void mongo_prepare_pipeline(List *clause, BSON *inner_pipeline,
 								   pipeline_cxt *context);
 static void mongo_append_clauses_to_pipeline(List *clause, BSON *child_doc,
 											 pipeline_cxt *context);
+#endif
+
+#if PG_VERSION_NUM >= 160000
+static List *mongo_append_unique_var(List *varlist, Var *var);
 #endif
 
 #ifndef META_DRIVER
@@ -367,11 +371,7 @@ mongo_query_document(ForeignScanState *scanStateNode)
 			paramNode = (Param *) find_argument_of_type(argumentList, T_Param);
 
 			columnId = column->varattno;
-#if PG_VERSION_NUM < 110000
-			columnName = get_relid_attribute_name(relationId, columnId);
-#else
 			columnName = get_attname(relationId, columnId, false);
-#endif
 
 			if (constant != NULL)
 				append_constant_value(filter, columnName, constant);
@@ -402,11 +402,7 @@ mongo_query_document(ForeignScanState *scanStateNode)
 			if (relationId != 0)
 			{
 				columnId = column->varattno;
-#if PG_VERSION_NUM < 110000
-				columnName = get_relid_attribute_name(relationId, columnId);
-#else
 				columnName = get_attname(relationId, columnId, false);
-#endif
 			}
 
 			/* Find all expressions that correspond to the column */
@@ -696,7 +692,6 @@ mongo_query_document(ForeignScanState *scanStateNode)
 		/* Add HAVING operation */
 		if (having_expr)
 		{
-			BSON		match_stage;
 			pipeline_cxt context;
 
 			context.colInfoHash = columnInfoHash;
@@ -915,8 +910,12 @@ unique_column_list(List *operatorList)
 		Var		   *column = (Var *) find_argument_of_type(argumentList,
 														   T_Var);
 
+#if PG_VERSION_NUM >= 160000
+		uniqueColumnList = mongo_append_unique_var(uniqueColumnList, column);
+#else
 		/* List membership is determined via column's equal() function */
 		uniqueColumnList = list_append_unique(uniqueColumnList, column);
+#endif
 	}
 
 	return uniqueColumnList;
@@ -1291,16 +1290,10 @@ mongo_get_column_list(PlannerInfo *root, RelOptInfo *foreignrel,
 	List	   *columnList = NIL;
 	ListCell   *lc;
 	RelOptInfo *scanrel;
-#if PG_VERSION_NUM >= 100000
 	MongoFdwRelationInfo *fpinfo = (MongoFdwRelationInfo *) foreignrel->fdw_private;
 	MongoFdwRelationInfo *ofpinfo;
-#endif
 
-#if PG_VERSION_NUM >= 100000
 	scanrel = IS_UPPER_REL(foreignrel) ? fpinfo->outerrel : foreignrel;
-#else
-	scanrel = foreignrel;
-#endif
 
 	if (IS_UPPER_REL(foreignrel) && IS_JOIN_REL(scanrel))
 		ofpinfo = (MongoFdwRelationInfo *) fpinfo->outerrel->fdw_private;
@@ -1317,7 +1310,11 @@ mongo_get_column_list(PlannerInfo *root, RelOptInfo *foreignrel,
 		 */
 		if (IsA(var, Aggref))
 		{
+#if PG_VERSION_NUM >= 160000
+			columnList = mongo_append_unique_var(columnList, var);
+#else
 			columnList = list_append_unique(columnList, var);
+#endif
 			continue;
 		}
 
@@ -1332,8 +1329,10 @@ mongo_get_column_list(PlannerInfo *root, RelOptInfo *foreignrel,
 		if (var->varattno == 0)
 		{
 			List	   *wr_var_list;
-			RangeTblEntry *rte = rt_fetch(var->varno, root->parse->rtable);
 			Bitmapset  *attrs_used;
+#if PG_VERSION_NUM >= 160000
+			ListCell   *cell;
+#endif
 
 			Assert(OidIsValid(rte->relid));
 
@@ -1346,23 +1345,32 @@ mongo_get_column_list(PlannerInfo *root, RelOptInfo *foreignrel,
 
 			wr_var_list = prepare_var_list_for_baserel(rte->relid, var->varno,
 													   attrs_used);
+
+#if PG_VERSION_NUM >= 160000
+			foreach(cell, wr_var_list)
+			{
+				Var		   *tlvar = (Var *) lfirst(cell);
+
+				columnList = mongo_append_unique_var(columnList, tlvar);
+			}
+#else
 			columnList = list_concat_unique(columnList, wr_var_list);
+#endif
 			bms_free(attrs_used);
 		}
 		else
+#if PG_VERSION_NUM >= 160000
+			columnList = mongo_append_unique_var(columnList, var);
+#else
 			columnList = list_append_unique(columnList, var);
+#endif
 
 		if (IS_JOIN_REL(foreignrel) ||
 			(IS_UPPER_REL(foreignrel) && IS_JOIN_REL(scanrel)))
 		{
-			MongoFdwRelationInfo *fpinfo = (MongoFdwRelationInfo *) foreignrel->fdw_private;
 			char	   *columnName;
 
-#if PG_VERSION_NUM < 110000
-			columnName = get_relid_attribute_name(rte->relid, var->varattno);
-#else
 			columnName = get_attname(rte->relid, var->varattno, false);
-#endif
 			*column_name_list = lappend(*column_name_list,
 										makeString(columnName));
 			if (IS_UPPER_REL(foreignrel) && IS_JOIN_REL(scanrel) &&
@@ -2093,5 +2101,32 @@ mongo_is_foreign_param(PlannerInfo *root, RelOptInfo *baserel, Expr *expr)
 			break;
 	}
 	return false;
+}
+#endif
+
+#if PG_VERSION_NUM >= 160000
+/*
+ * mongo_append_unique_var
+ * 		Append var to var list, but only if it isn't already in the list.
+ *
+ * Whether a var is already a member of list is determined using varno and
+ * varattno.
+ */
+static List *
+mongo_append_unique_var(List *varlist, Var *var)
+{
+	ListCell   *lc;
+
+	foreach(lc, varlist)
+	{
+		Var		   *tlvar = (Var *) lfirst(lc);
+
+		if (IsA(tlvar, Var) &&
+			tlvar->varno == var->varno &&
+			tlvar->varattno == var->varattno)
+			return varlist;
+	}
+
+	return lappend(varlist, var);
 }
 #endif

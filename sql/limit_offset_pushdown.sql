@@ -3,8 +3,9 @@
 \set MONGO_USER_NAME	`echo \'"$MONGO_USER_NAME"\'`
 \set MONGO_PASS			`echo \'"$MONGO_PWD"\'`
 
--- Before running this file User must create database mongo_fdw_regress on
--- MongoDB with all permission for 'edb' user with 'edb' password and ran
+-- Before running this file user must create database mongo_fdw_regress,
+-- mongo_fdw_regress1 and mongo_fdw_regress2 databases on MongoDB with all
+-- permission for MONGO_USER_NAME user with MONGO_PASS password and ran
 -- mongodb_init.sh file to load collections.
 
 \c contrib_regression
