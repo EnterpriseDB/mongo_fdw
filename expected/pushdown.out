@@ -2,10 +2,9 @@
 \set MONGO_PORT			`echo \'"$MONGO_PORT"\'`
 \set MONGO_USER_NAME	`echo \'"$MONGO_USER_NAME"\'`
 \set MONGO_PASS			`echo \'"$MONGO_PWD"\'`
--- Before running this file User must create database mongo_fdw_regress and
--- mongo_fdw_regress1 databases on MongoDB with all permission for
--- MONGO_USER_NAME user with MONGO_PASS password and ran mongodb_init.sh file
--- to load collections.
+-- Before running this file user must create database mongo_fdw_regress on
+-- MongoDB with all permission for MONGO_USER_NAME user with MONGO_PASS
+-- password and ran mongodb_init.sh file to load collections.
 \c contrib_regression
 CREATE EXTENSION IF NOT EXISTS mongo_fdw;
 CREATE SERVER mongo_server FOREIGN DATA WRAPPER mongo_fdw
@@ -755,6 +754,134 @@ SELECT MIN(a) FROM f_mongo_test ORDER BY 1 USING OPERATOR(public.<^);
    ->  Result
          Output: $0
 (12 rows)
+
+-- FDW-589: Test enable_order_by_pushdown option at server and table level.
+-- Test the option at server level.
+-- Check only boolean values are accepted.
+ALTER SERVER mongo_server OPTIONS (ADD enable_order_by_pushdown 'abc11');
+ERROR:  enable_order_by_pushdown requires a Boolean value
+ALTER SERVER mongo_server OPTIONS (ADD enable_order_by_pushdown 'false');
+EXPLAIN (VERBOSE, COSTS FALSE)
+SELECT c1, c4 FROM f_test_tbl1
+  WHERE c1 > c4
+  ORDER BY c1 ASC NULLS FIRST;
+                       QUERY PLAN                       
+--------------------------------------------------------
+ Sort
+   Output: c1, c4
+   Sort Key: f_test_tbl1.c1 NULLS FIRST
+   ->  Foreign Scan on public.f_test_tbl1
+         Output: c1, c4
+         Foreign Namespace: mongo_fdw_regress.test_tbl1
+(6 rows)
+
+ALTER SERVER mongo_server OPTIONS (SET enable_order_by_pushdown 'true');
+EXPLAIN (VERBOSE, COSTS FALSE)
+SELECT c1, c4 FROM f_test_tbl1
+  WHERE c1 > c4
+  ORDER BY c1 ASC NULLS FIRST;
+                    QUERY PLAN                    
+--------------------------------------------------
+ Foreign Scan on public.f_test_tbl1
+   Output: c1, c4
+   Foreign Namespace: mongo_fdw_regress.test_tbl1
+(3 rows)
+
+-- Test that setting option at table level does not affect the setting at
+-- server level.
+ALTER SERVER mongo_server OPTIONS (SET enable_order_by_pushdown 'false');
+-- Test the option at table level.
+ALTER FOREIGN TABLE f_test_tbl1 OPTIONS (ADD enable_order_by_pushdown 'true');
+EXPLAIN (VERBOSE, COSTS FALSE)
+SELECT c1, c4 FROM f_test_tbl1
+  WHERE c1 > c4
+  ORDER BY c1 ASC NULLS FIRST;
+                    QUERY PLAN                    
+--------------------------------------------------
+ Foreign Scan on public.f_test_tbl1
+   Output: c1, c4
+   Foreign Namespace: mongo_fdw_regress.test_tbl1
+(3 rows)
+
+SELECT c1, c4 FROM f_test_tbl1
+  WHERE c1 > c4
+  ORDER BY c1 ASC NULLS FIRST;
+  c1  | c4  
+------+-----
+  800 | 400
+ 1000 | 600
+ 1100 | 800
+ 1200 | 600
+ 1300 | 400
+ 1400 | 700
+(6 rows)
+
+ALTER FOREIGN TABLE f_test_tbl1 OPTIONS (SET enable_order_by_pushdown 'false');
+EXPLAIN (VERBOSE, COSTS FALSE)
+SELECT c1, c4 FROM f_test_tbl1
+  WHERE c1 > c4
+  ORDER BY c1 ASC NULLS FIRST;
+                       QUERY PLAN                       
+--------------------------------------------------------
+ Sort
+   Output: c1, c4
+   Sort Key: f_test_tbl1.c1 NULLS FIRST
+   ->  Foreign Scan on public.f_test_tbl1
+         Output: c1, c4
+         Foreign Namespace: mongo_fdw_regress.test_tbl1
+(6 rows)
+
+SELECT c1, c4 FROM f_test_tbl1
+  WHERE c1 > c4
+  ORDER BY c1 ASC NULLS FIRST;
+  c1  | c4  
+------+-----
+  800 | 400
+ 1000 | 600
+ 1100 | 800
+ 1200 | 600
+ 1300 | 400
+ 1400 | 700
+(6 rows)
+
+ALTER SERVER mongo_server OPTIONS (SET enable_order_by_pushdown 'true');
+ALTER FOREIGN TABLE f_test_tbl1 OPTIONS (SET enable_order_by_pushdown 'true');
+-- FDW-631: Test pushdown of boolean expression
+EXPLAIN (VERBOSE, COSTS FALSE)
+SELECT name, pass FROM f_test_tbl3 WHERE pass = false ORDER BY name;
+                       QUERY PLAN                       
+--------------------------------------------------------
+ Sort
+   Output: name, pass
+   Sort Key: f_test_tbl3.name
+   ->  Foreign Scan on public.f_test_tbl3
+         Output: name, pass
+         Foreign Namespace: mongo_fdw_regress.test_tbl3
+(6 rows)
+
+SELECT name, pass FROM f_test_tbl3 WHERE pass = false ORDER BY name;
+ name | pass 
+------+------
+ dvd  | f
+(1 row)
+
+EXPLAIN (VERBOSE, COSTS FALSE)
+SELECT name, pass FROM f_test_tbl3 WHERE pass = true ORDER BY name;
+                       QUERY PLAN                       
+--------------------------------------------------------
+ Sort
+   Output: name, pass
+   Sort Key: f_test_tbl3.name
+   ->  Foreign Scan on public.f_test_tbl3
+         Output: name, pass
+         Foreign Namespace: mongo_fdw_regress.test_tbl3
+(6 rows)
+
+SELECT name, pass FROM f_test_tbl3 WHERE pass = true ORDER BY name;
+ name | pass 
+------+------
+ vdd  | t
+(1 row)
 
 -- Cleanup
 DELETE FROM f_mongo_test WHERE a != 0;

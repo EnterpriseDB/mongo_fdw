@@ -3,9 +3,9 @@
 \set MONGO_USER_NAME	`echo \'"$MONGO_USER_NAME"\'`
 \set MONGO_PASS			`echo \'"$MONGO_PWD"\'`
 
--- Before running this file User must create database mongo_fdw_regress on
--- MongoDB with all permission for 'edb' user with 'edb' password and ran
--- mongodb_init.sh file to load collections.
+-- Before running this file user must create database mongo_fdw_regress on
+-- MongoDB with all permission for MONGO_USER_NAME user with MONGO_PASS
+-- password and ran mongodb_init.sh file to load collections.
 
 \c contrib_regression
 CREATE EXTENSION IF NOT EXISTS mongo_fdw;
@@ -70,6 +70,7 @@ SELECT d.c1, d.c2, e.c1, e.c2, e.c6, e.c8
 SELECT d.c1, d.c2, e.c1, e.c2, e.c6, e.c8
   FROM f_test_tbl2 d LEFT OUTER JOIN f_test_tbl1 e ON (d.c1 = e.c8 AND e.c4 > d.c1 AND e.c2 < d.c3) ORDER BY 1 ASC NULLS FIRST, 3 ASC NULLS FIRST;
 SET mongo_fdw.enable_order_by_pushdown TO ON;
+
 -- Column comparing with 'Constant' pushed down.
 EXPLAIN (COSTS OFF)
 SELECT d.c1, d.c2, e.c1, e.c2, e.c6, e.c8
@@ -503,6 +504,74 @@ SELECT d.c1, d.c2, e.c1, e.c2, e.c6, e.c8
 EXPLAIN (COSTS FALSE, VERBOSE)
 SELECT t1.c1, t2.c2
   FROM f_test_tbl3 t1 JOIN f_test_tbl4 t2 ON (t1.c1 = t2.c8) ORDER BY 1, 2;
+
+-- FDW-558: Test mongo_fdw.enable_join_pushdown GUC.
+-- Negative testing for GUC value.
+SET mongo_fdw.enable_join_pushdown to 'abc';
+-- Check default value. Should be ON.
+SHOW mongo_fdw.enable_join_pushdown;
+-- Join pushdown should happen as the GUC enable_join_pushdown is true.
+ALTER SERVER mongo_server OPTIONS (SET enable_join_pushdown 'true');
+ALTER FOREIGN TABLE f_test_tbl1 OPTIONS (SET enable_join_pushdown 'true');
+ALTER FOREIGN TABLE f_test_tbl2 OPTIONS (SET enable_join_pushdown 'true');
+EXPLAIN (COSTS FALSE, VERBOSE)
+SELECT d.c1, e.c8
+  FROM f_test_tbl2 d JOIN f_test_tbl1 e ON (d.c1 = e.c8) ORDER BY 1, 2;
+--Disable the GUC enable_join_pushdown.
+SET mongo_fdw.enable_join_pushdown to false;
+-- Join pushdown shouldn't happen as the GUC enable_join_pushdown is false.
+EXPLAIN (COSTS FALSE, VERBOSE)
+SELECT d.c1, e.c8
+  FROM f_test_tbl2 d JOIN f_test_tbl1 e ON (d.c1 = e.c8) ORDER BY 1, 2;
+-- Enable the GUC and table level option is set to false, should not pushdown.
+ALTER FOREIGN TABLE f_test_tbl1 OPTIONS (SET enable_join_pushdown 'false');
+ALTER FOREIGN TABLE f_test_tbl2 OPTIONS (SET enable_join_pushdown 'false');
+SET mongo_fdw.enable_join_pushdown to true;
+EXPLAIN (COSTS FALSE, VERBOSE)
+SELECT d.c1, e.c8
+  FROM f_test_tbl2 d JOIN f_test_tbl1 e ON (d.c1 = e.c8) ORDER BY 1, 2;
+
+-- FDW-589: Test enable_order_by_pushdown option at server and table level.
+SET mongo_fdw.enable_join_pushdown to true;
+SET mongo_fdw.enable_order_by_pushdown to true;
+ALTER FOREIGN TABLE f_test_tbl1 OPTIONS (SET enable_join_pushdown 'true');
+ALTER FOREIGN TABLE f_test_tbl2 OPTIONS (SET enable_join_pushdown 'true');
+ALTER SERVER mongo_server OPTIONS (ADD enable_order_by_pushdown 'true');
+ALTER FOREIGN TABLE f_test_tbl1 OPTIONS (ADD enable_order_by_pushdown 'true');
+ALTER FOREIGN TABLE f_test_tbl2 OPTIONS (ADD enable_order_by_pushdown 'true');
+EXPLAIN (COSTS OFF)
+SELECT d.c1, d.c2, e.c1, e.c2, e.c6, e.c8
+  FROM f_test_tbl2 d LEFT OUTER JOIN f_test_tbl1 e ON (d.c1 = e.c8 AND e.c4 > d.c1 AND e.c2 < d.c3) ORDER BY 1 ASC NULLS FIRST, 3 ASC NULLS FIRST;
+SELECT d.c1, d.c2, e.c1, e.c2, e.c6, e.c8
+  FROM f_test_tbl2 d LEFT OUTER JOIN f_test_tbl1 e ON (d.c1 = e.c8 AND e.c4 > d.c1 AND e.c2 < d.c3) ORDER BY 1 ASC NULLS FIRST, 3 ASC NULLS FIRST;
+-- One table level option is OFF. Shouldn't pushdown ORDER BY.
+ALTER FOREIGN TABLE f_test_tbl1 OPTIONS (SET enable_order_by_pushdown 'true');
+ALTER FOREIGN TABLE f_test_tbl2 OPTIONS (SET enable_order_by_pushdown 'false');
+EXPLAIN (COSTS OFF)
+SELECT d.c1, d.c2, e.c1, e.c2, e.c6, e.c8
+  FROM f_test_tbl2 d LEFT OUTER JOIN f_test_tbl1 e ON (d.c1 = e.c8 AND e.c4 > d.c1 AND e.c2 < d.c3) ORDER BY 1 ASC NULLS FIRST, 3 ASC NULLS FIRST;
+SELECT d.c1, d.c2, e.c1, e.c2, e.c6, e.c8
+  FROM f_test_tbl2 d LEFT OUTER JOIN f_test_tbl1 e ON (d.c1 = e.c8 AND e.c4 > d.c1 AND e.c2 < d.c3) ORDER BY 1 ASC NULLS FIRST, 3 ASC NULLS FIRST;
+-- Test that setting option at table level does not affect the setting at
+-- server level.
+ALTER SERVER mongo_server OPTIONS (SET enable_order_by_pushdown 'false');
+ALTER FOREIGN TABLE f_test_tbl1 OPTIONS (SET enable_order_by_pushdown 'true');
+ALTER FOREIGN TABLE f_test_tbl2 OPTIONS (SET enable_order_by_pushdown 'true');
+EXPLAIN (COSTS OFF)
+SELECT d.c1, d.c2, e.c1, e.c2, e.c6, e.c8
+  FROM f_test_tbl2 d LEFT OUTER JOIN f_test_tbl1 e ON (d.c1 = e.c8 AND e.c4 > d.c1 AND e.c2 < d.c3) ORDER BY 1 ASC NULLS FIRST, 3 ASC NULLS FIRST;
+SELECT d.c1, d.c2, e.c1, e.c2, e.c6, e.c8
+  FROM f_test_tbl2 d LEFT OUTER JOIN f_test_tbl1 e ON (d.c1 = e.c8 AND e.c4 > d.c1 AND e.c2 < d.c3) ORDER BY 1 ASC NULLS FIRST, 3 ASC NULLS FIRST;
+ALTER SERVER mongo_server OPTIONS (SET enable_order_by_pushdown 'true');
+-- When enable_join_pushdown option is disabled. Shouldn't pushdown join and
+-- hence, ORDER BY too.
+ALTER FOREIGN TABLE f_test_tbl1 OPTIONS (SET enable_join_pushdown 'false');
+ALTER FOREIGN TABLE f_test_tbl2 OPTIONS (SET enable_join_pushdown 'false');
+EXPLAIN (COSTS OFF)
+SELECT d.c1, d.c2, e.c1, e.c2, e.c6, e.c8
+  FROM f_test_tbl2 d LEFT OUTER JOIN f_test_tbl1 e ON (d.c1 = e.c8 AND e.c4 > d.c1 AND e.c2 < d.c3) ORDER BY 1 ASC NULLS FIRST, 3 ASC NULLS FIRST;
+SELECT d.c1, d.c2, e.c1, e.c2, e.c6, e.c8
+  FROM f_test_tbl2 d LEFT OUTER JOIN f_test_tbl1 e ON (d.c1 = e.c8 AND e.c4 > d.c1 AND e.c2 < d.c3) ORDER BY 1 ASC NULLS FIRST, 3 ASC NULLS FIRST;
 
 DELETE FROM f_test_tbl1 WHERE c8 IS NULL;
 DELETE FROM f_test_tbl1 WHERE c8 = 60;

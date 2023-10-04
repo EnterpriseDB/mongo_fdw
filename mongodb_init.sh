@@ -11,6 +11,8 @@ export MONGO_PWD="edb"
 # db.createUser({user:"edb",pwd:"edb",roles:[{role:"dbOwner", db:"mongo_fdw_regress"},{role:"readWrite", db:"mongo_fdw_regress"}]})
 # use mongo_fdw_regress1
 # db.createUser({user:"edb",pwd:"edb",roles:[{role:"dbOwner", db:"mongo_fdw_regress1"},{role:"readWrite", db:"mongo_fdw_regress1"}]})
+# use mongo_fdw_regress2
+# db.createUser({user:"edb",pwd:"edb",roles:[{role:"dbOwner", db:"mongo_fdw_regress2"},{role:"readWrite", db:"mongo_fdw_regress2"}]})
 
 mongoimport --host=$MONGO_HOST --port=$MONGO_PORT -u $MONGO_USER_NAME -p $MONGO_PWD --db mongo_fdw_regress --collection countries --jsonArray --drop --maintainInsertionOrder --quiet < data/mongo_fixture.json
 mongoimport --host=$MONGO_HOST --port=$MONGO_PORT -u $MONGO_USER_NAME -p $MONGO_PWD --db mongo_fdw_regress --collection warehouse --jsonArray --drop --maintainInsertionOrder --quiet < data/mongo_warehouse.json

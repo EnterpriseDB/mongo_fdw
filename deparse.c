@@ -4,7 +4,7 @@
  * 		Query deparser for mongo_fdw
  *
  * Portions Copyright (c) 2012-2014, PostgreSQL Global Development Group
- * Portions Copyright (c) 2004-2022, EnterpriseDB Corporation.
+ * Portions Copyright (c) 2004-2023, EnterpriseDB Corporation.
  * Portions Copyright (c) 2012–2014 Citus Data, Inc.
  *
  * IDENTIFICATION
@@ -273,11 +273,7 @@ mongo_check_var(Var *column, MongoRelQualInfo *qual_info)
 	/* Get RangeTblEntry from array in PlannerInfo. */
 	rte = planner_rt_fetch(column->varno, qual_info->root);
 
-#if PG_VERSION_NUM >= 110000
 	colname = get_attname(rte->relid, column->varattno, false);
-#else
-	colname = get_relid_attribute_name(rte->relid, column->varattno);
-#endif
 
 	/* Is relation inner or outer? */
 	if (bms_is_member(column->varno, qual_info->outerRelids))
@@ -384,8 +380,7 @@ mongo_append_bool_expr(BoolExpr *node, BSON *child_doc, pipeline_cxt *context)
 			break;
 		case NOT_EXPR:
 			op = "$not";
-			mongo_append_expr(linitial(node->args), child_doc, context);
-			return;
+			break;
 	}
 
 	bsonAppendStartObject(child_doc, psprintf("%d", context->arrayIndex), &expr);

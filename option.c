@@ -4,7 +4,7 @@
  * 		FDW option handling for mongo_fdw
  *
  * Portions Copyright (c) 2012-2014, PostgreSQL Global Development Group
- * Portions Copyright (c) 2004-2022, EnterpriseDB Corporation.
+ * Portions Copyright (c) 2004-2023, EnterpriseDB Corporation.
  * Portions Copyright (c) 2012–2014 Citus Data, Inc.
  *
  * IDENTIFICATION
@@ -110,7 +110,8 @@ mongo_fdw_validator(PG_FUNCTION_ARGS)
 				 || strcmp(optionName, OPTION_NAME_WEAK_CERT) == 0 ||
 				 strcmp(optionName, OPTION_NAME_ENABLE_JOIN_PUSHDOWN) == 0 ||
 				 strcmp(optionName, OPTION_NAME_SSL) == 0 ||
-				 strcmp(optionName, OPTION_NAME_ENABLE_AGGREGATE_PUSHDOWN) == 0
+				 strcmp(optionName, OPTION_NAME_ENABLE_AGGREGATE_PUSHDOWN) == 0 ||
+				 strcmp(optionName, OPTION_NAME_ENABLE_ORDER_BY_PUSHDOWN) == 0
 #endif
 			)
 		{
@@ -188,6 +189,7 @@ mongo_get_options(Oid foreignTableId)
 	options->weak_cert_validation = false;
 	options->enable_join_pushdown = true;
 	options->enable_aggregate_pushdown = true;
+	options->enable_order_by_pushdown = true;
 #endif
 
 	/* Loop through the options */
@@ -233,20 +235,24 @@ mongo_get_options(Oid foreignTableId)
 						OPTION_NAME_ENABLE_AGGREGATE_PUSHDOWN) == 0)
 			options->enable_aggregate_pushdown = defGetBoolean(def);
 
+		else if (strcmp(def->defname,
+						OPTION_NAME_ENABLE_ORDER_BY_PUSHDOWN) == 0)
+			options->enable_order_by_pushdown = defGetBoolean(def);
+
 		else					/* This is for continuation */
 #endif
 
 		if (strcmp(def->defname, OPTION_NAME_ADDRESS) == 0)
-			options->svr_address = defGetString(def);
+			options->svr_address = pstrdup(defGetString(def));
 
 		else if (strcmp(def->defname, OPTION_NAME_PORT) == 0)
 			options->svr_port = atoi(defGetString(def));
 
 		else if (strcmp(def->defname, OPTION_NAME_DATABASE) == 0)
-			options->svr_database = defGetString(def);
+			options->svr_database = pstrdup(defGetString(def));
 
 		else if (strcmp(def->defname, OPTION_NAME_COLLECTION) == 0)
-			options->collectionName = defGetString(def);
+			options->collectionName = pstrdup(defGetString(def));
 
 		else if (strcmp(def->defname, OPTION_NAME_USERNAME) == 0)
 			options->svr_username = defGetString(def);
@@ -281,6 +287,7 @@ mongo_free_options(MongoFdwOptions *options)
 	{
 		pfree(options->svr_address);
 		pfree(options->svr_database);
+		pfree(options->collectionName);
 		pfree(options);
 	}
 }

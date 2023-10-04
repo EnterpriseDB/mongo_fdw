@@ -3,10 +3,9 @@
 \set MONGO_PORT			`echo \'"$MONGO_PORT"\'`
 \set MONGO_USER_NAME	`echo \'"$MONGO_USER_NAME"\'`
 \set MONGO_PASS			`echo \'"$MONGO_PWD"\'`
--- Before running this file User must create database mongo_fdw_regress and
--- mongo_fdw_regress1 databases on MongoDB with all permission for
--- MONGO_USER_NAME user with MONGO_PASS password and ran mongodb_init.sh file
--- to load collections.
+-- Before running this file user must create database mongo_fdw_regress on
+-- MongoDB with all permission for MONGO_USER_NAME user with MONGO_PASS
+-- password and ran mongodb_init.sh file to load collections.
 \c contrib_regression
 CREATE EXTENSION IF NOT EXISTS mongo_fdw;
 CREATE SERVER mongo_server FOREIGN DATA WRAPPER mongo_fdw
