@@ -80,7 +80,7 @@ meta driver accordingly.
 	cmake --build . --target install
 	```
 
-For more details on installation of mongo-c driver, you can refer [here][5].
+For more details on installation of mongo-c driver, you can refer [here][3].
 
 #### Legacy driver
 
@@ -98,6 +98,7 @@ expected to be removed entirely in a future release.
 	```
 
 ### json-c
+
 1. Download and extract source code
 
 	```sh
@@ -126,7 +127,7 @@ expected to be removed entirely in a future release.
 	make install
 	```
 
-For more details on installation of json-c library, you can refer [here][6].
+For more details on installation of json-c library, you can refer [here][4].
 
 ### How to compile against mongo-c Meta or Legacy driver?
 To compile against legacy driver, 'Makefile.legacy' must be used and
@@ -200,3 +201,5 @@ If you run into any issues, please [let us know][2].
 
 [1]: http://www.mongodb.com
 [2]: https://github.com/enterprisedb/mongo_fdw/issues/new
+[3]: http://mongoc.org/libmongoc/1.17.3/installing.html#configuring-the-build
+[4]: https://github.com/json-c/json-c/tree/json-c-0.15-20200726#build-instructions--

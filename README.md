@@ -107,7 +107,7 @@ Usage
 - **port** as *integer*, optional, default `27017`.
 
   Port number of the MongoDB server.
-  
+
 - **use_remote_estimate** as *boolean*, optional, default `false`
 
   Controls whether `mongo_fdw` uses exact rows from
@@ -132,7 +132,7 @@ The following options are _only supported with meta driver_:
     `secondaryPreferred`, or `nearest`.
 
 - **ssl** as *boolean*, optional, default `false`
-  
+
   Enable ssl. See http://mongoc.org/libmongoc/current/mongoc_ssl_opt_t.html to
     understand the options.
 
@@ -193,7 +193,7 @@ command:
 - **password** as *string*, optional
 
   Password to authenticate to the MongoDB server.
-  
+
 ## CREATE FOREIGN TABLE options
 
 `mongo_fdw` accepts the following table-level options via the
@@ -215,7 +215,7 @@ command:
 - **enable_aggregate_pushdown** as *boolean*, optional, default `true`
 
   Similar to the server-level option, but can be configured at table level as well.
-    
+
 No column-level options are available.
 
 ## IMPORT FOREIGN SCHEMA options
@@ -505,5 +505,3 @@ See the [`LICENSE`][4] file for full details.
 [2]: https://github.com/enterprisedb/mongo_fdw/issues/new
 [3]: CONTRIBUTING.md
 [4]: LICENSE
-[5]: http://mongoc.org/libmongoc/1.17.3/installing.html#configuring-the-build
-[6]: https://github.com/json-c/json-c/tree/json-c-0.15-20200726#build-instructions--
