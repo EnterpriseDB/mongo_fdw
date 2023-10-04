@@ -407,7 +407,7 @@ db.warehouse.remove
 	}
 )
 ```
-### `UPDATE`
+#### `UPDATE`
 ```sql
 UPDATE warehouse
    SET warehouse_name = 'UPS_NEW'
