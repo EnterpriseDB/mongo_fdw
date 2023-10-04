@@ -5,7 +5,7 @@ This PostgreSQL extension implements a Foreign Data Wrapper (FDW) for
 [MongoDB][1].
 
 Please note that this version of mongo_fdw works with PostgreSQL and EDB
-Postgres Advanced Server 10, 11, 12, 13, 14, and 15.
+Postgres Advanced Server 11, 12, 13, 14, 15 and 16.
 
 <img src="https://upload.wikimedia.org/wikipedia/commons/2/29/Postgresql_elephant.svg" align="center" height="100" alt="PostgreSQL"/>	+	<img src="https://www.tutorialsteacher.com/Content/images/home/mongodb.svg" align="center" height="100" alt="MongoDB"/>
 
@@ -22,7 +22,7 @@ Contents
 8. [Character set handling](#character-set-handling)
 9. [Examples](#examples)
 10. [Limitations](#limitations)
-11. [Contributing](#contributing)
+11. [Contributing and testing](#contributing-and-testing)
 12. [Useful links](#useful-links)
 
 Features
@@ -80,7 +80,12 @@ network traffic between local PostgreSQL and remote MongoDB servers.
   * `mongo_fdw.enable_order_by_pushdown`: If `true`, pushes the order by
 	operation to the foreign server, instead of fetching rows from the
 	foreign server and performing the sort locally. Default is `true`.
-
+  * `mongo_fdw.enable_join_pushdown`: If `true`, pushes the join between two
+        foreign tables from the same foreign server, instead of fetching all the
+        rows for both the tables and performing a join locally. Default is `true`.
+  * `mongo_fdw.enable_aggregate_pushdown`: If `true`, pushes aggregate
+	operations to the foreign server, instead of fetching rows from the
+	foreign server and performing the operations locally. Default is `true`.
 
 Supported platforms
 -------------------
@@ -114,6 +119,14 @@ Usage
 
   Controls whether `mongo_fdw` uses exact rows from
     remote collection to obtain cost estimates.
+
+- **enable_order_by_pushdown** as *boolean*, optional, default `true`
+
+  If `true`, pushes the ORDER BY clause to theforeign server instead of
+    performing a sort locally. This option can also be set for an individual
+    table, and if any of the tables involved in the query has set it to
+    false then the ORDER BY will not be pushed down. The table-level value
+    of the option takes precedence over the server-level option value.
 
 The following options are _only supported with meta driver_:
 
@@ -214,7 +227,11 @@ command:
   Similar to the server-level option, but can be
     configured at table level as well.
 
-- **enable_aggregate_pushdown** as *boolean*, optional, default `true`
+- **enable_aggregate_pushdown** as *boolean*, optional, default corresponding servel-lelel value
+
+  Similar to the server-level option, but can be configured at table level as well.
+
+- **enable_order_by_pushdown** as *boolean*, optional, default corresponding servel-lelel value
 
   Similar to the server-level option, but can be configured at table level as well.
 
@@ -454,10 +471,24 @@ Limitations
     `NAMEDATALEN` constant in `src/include/pg_config_manual.h`, compile,
     and re-install.
 
-Contributing
-------------
+Contributing and testing
+------------------------
+
 Have a fix for a bug or an idea for a great new feature? Great! Check
 out the contribution guidelines [here][3].
+
+### Running regression test.
+Run `mongodb_init.sh` file to load required collections.
+```sh
+source mongodb_init.sh
+```
+Finally, run regression.
+```sh
+make USE_PGXS=1 installcheck
+```
+However, make sure to set the `MONGO_HOST`, `MONGO_PORT`, `MONGO_USER_NAME`,
+and `MONGO_PWD` environment variables correctly. The default settings can
+be found in the `mongodb_init.sh` script.
 
 Useful links
 ------------
