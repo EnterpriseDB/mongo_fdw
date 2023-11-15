@@ -168,6 +168,7 @@
 
 /* Defines for sending queries and converting types */
 #define EQUALITY_OPERATOR_NAME 				"="
+#define INEQUALITY_OPERATOR_NAME 			"<>"
 #define INITIAL_ARRAY_CAPACITY 				8
 #define MONGO_TUPLE_COST_MULTIPLIER 		5
 #define MONGO_CONNECTION_COST_MULTIPLIER 	5

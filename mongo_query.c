@@ -324,6 +324,7 @@ mongo_query_document(ForeignScanState *scanStateNode)
 		context.isBoolExpr = false;
 		context.isJoinClause = false;
 		context.scanStateNode = scanStateNode;
+        context.arrayIndex = 0;
 
 		bsonAppendStartArray(filter, "pipeline", &match_stage);
 
@@ -515,6 +516,7 @@ mongo_query_document(ForeignScanState *scanStateNode)
 			context.isBoolExpr = false;
 			context.isJoinClause = true;
 			context.scanStateNode = scanStateNode;
+            context.arrayIndex = 0;
 
 			/* Form equivalent join qual clauses in MongoDB */
 			mongo_prepare_pipeline(joinclauses, &inner_pipeline, &context);
@@ -698,6 +700,7 @@ mongo_query_document(ForeignScanState *scanStateNode)
 			context.isBoolExpr = false;
 			context.isJoinClause = false;
 			context.scanStateNode = scanStateNode;
+            context.arrayIndex = 0;
 
 			/* $match stage.  Add a filter for the HAVING clause */
 			bsonAppendStartObject(&root_pipeline, psprintf("%d", root_index++),
@@ -1233,6 +1236,48 @@ append_mongo_value(BSON *queryDocument, const char *keyName, Datum value,
 				pfree(elem_nulls);
 			}
 			break;
+		case NAMEARRAYOID:
+			{
+				ArrayType  *array;
+				Oid			elmtype;
+				int16		elmlen;
+				bool		elmbyval;
+				char		elmalign;
+				int			num_elems;
+				Datum	   *elem_values;
+				bool	   *elem_nulls;
+				int			i;
+				BSON		childDocument;
+
+				array = DatumGetArrayTypeP(value);
+				elmtype = ARR_ELEMTYPE(array);
+				get_typlenbyvalalign(elmtype, &elmlen, &elmbyval, &elmalign);
+
+				deconstruct_array(array, elmtype, elmlen, elmbyval, elmalign,
+								  &elem_values, &elem_nulls, &num_elems);
+
+				bsonAppendStartArray(queryDocument, keyName, &childDocument);
+				for (i = 0; i < num_elems; i++)
+				{
+                    char	   *outputString;
+                    Oid			outputFunctionId;
+                    bool		typeVarLength;
+                    bson_oid_t	bsonObjectId;
+
+					if (elem_nulls[i])
+						continue;
+
+                    getTypeOutputInfo(NAMEOID, &outputFunctionId, &typeVarLength);
+                    outputString = OidOutputFunctionCall(outputFunctionId, elem_values[i]);
+                    bsonOidFromString(&bsonObjectId, outputString);
+                    status = bsonAppendOid(&childDocument, keyName, &bsonObjectId);
+				}
+
+				bsonAppendFinishArray(queryDocument, &childDocument);
+				pfree(elem_values);
+				pfree(elem_nulls);
+			}
+			break;
 		case JSONOID:
 			{
 				char	   *outputString;
@@ -1460,14 +1505,6 @@ foreign_expr_walker(Node *node, foreign_glob_cxt *glob_cxt,
 				Const	   *c = (Const *) node;
 
 				/*
-				 * We don't push down operators where the constant is an
-				 * array, since conditional operators for arrays in MongoDB
-				 * aren't properly defined.
-				 */
-				if (OidIsValid(get_element_type(c->consttype)))
-					return false;
-
-				/*
 				 * If the constant has nondefault collation, either it's of a
 				 * non-builtin type, or it reflects folding of a CollateExpr.
 				 * It's unsafe to send to the remote unless it's used in a
@@ -1475,7 +1512,10 @@ foreign_expr_walker(Node *node, foreign_glob_cxt *glob_cxt,
 				 */
 				collation = c->constcollid;
 				if (collation == InvalidOid ||
-					collation == DEFAULT_COLLATION_OID)
+					collation == DEFAULT_COLLATION_OID ||
+                    collation == C_COLLATION_OID ||
+                    collation == POSIX_COLLATION_OID
+                    )
 					state = FDW_COLLATE_NONE;
 				else
 					state = FDW_COLLATE_UNSAFE;
@@ -1489,8 +1529,9 @@ foreign_expr_walker(Node *node, foreign_glob_cxt *glob_cxt,
 				 * Bail out on planner internal params. We could perhaps pass
 				 * them to the remote server as regular params, but we don't
 				 * have the machinery to do that at the moment.
+                 * TODO: Check if the param type oid is allowable
 				 */
-				if (p->paramkind != PARAM_EXTERN)
+				if (p->paramkind != PARAM_EXTERN && p->paramkind != PARAM_EXEC)
 					return false;
 
 				/*
@@ -1498,7 +1539,10 @@ foreign_expr_walker(Node *node, foreign_glob_cxt *glob_cxt,
 				 */
 				collation = p->paramcollid;
 				if (collation == InvalidOid ||
-					collation == DEFAULT_COLLATION_OID)
+					collation == DEFAULT_COLLATION_OID ||
+                    collation == C_COLLATION_OID ||
+                    collation == POSIX_COLLATION_OID
+                    )
 					state = FDW_COLLATE_NONE;
 				else
 					state = FDW_COLLATE_UNSAFE;
@@ -1558,7 +1602,11 @@ foreign_expr_walker(Node *node, foreign_glob_cxt *glob_cxt,
 				else if (inner_cxt.state == FDW_COLLATE_SAFE &&
 						 collation == inner_cxt.collation)
 					state = FDW_COLLATE_SAFE;
-				else if (collation == DEFAULT_COLLATION_OID)
+				else if (
+                    collation == DEFAULT_COLLATION_OID ||
+                    collation == C_COLLATION_OID ||
+                    collation == POSIX_COLLATION_OID
+                )
 					state = FDW_COLLATE_NONE;
 				else
 					state = FDW_COLLATE_UNSAFE;
@@ -1585,7 +1633,11 @@ foreign_expr_walker(Node *node, foreign_glob_cxt *glob_cxt,
 				else if (inner_cxt.state == FDW_COLLATE_SAFE &&
 						 collation == inner_cxt.collation)
 					state = FDW_COLLATE_SAFE;
-				else if (collation == DEFAULT_COLLATION_OID)
+				else if (
+                    collation == DEFAULT_COLLATION_OID ||
+                    collation == C_COLLATION_OID ||
+                    collation == POSIX_COLLATION_OID
+                )
 					state = FDW_COLLATE_NONE;
 				else
 					state = FDW_COLLATE_UNSAFE;
@@ -1721,12 +1773,68 @@ foreign_expr_walker(Node *node, foreign_glob_cxt *glob_cxt,
 				else if (inner_cxt.state == FDW_COLLATE_SAFE &&
 						 collation == inner_cxt.collation)
 					state = FDW_COLLATE_SAFE;
-				else if (collation == DEFAULT_COLLATION_OID)
+				else if (
+                    collation == DEFAULT_COLLATION_OID ||
+                    collation == C_COLLATION_OID ||
+                    collation == POSIX_COLLATION_OID
+                    )
 					state = FDW_COLLATE_NONE;
 				else
 					state = FDW_COLLATE_UNSAFE;
 			}
 			break;
+        case T_ScalarArrayOpExpr:
+            {
+                ScalarArrayOpExpr   *saoe = (ScalarArrayOpExpr*) node;
+				char	   *oname = get_opname(saoe->opno);
+
+				/* Don't support operator expression in grouping targets */
+				if (IS_UPPER_REL(glob_cxt->foreignrel) &&
+					!glob_cxt->is_having_cond)
+					return false;
+
+#ifndef META_DRIVER
+				/* Increment the operator expression count */
+				glob_cxt->opexprcount++;
+#endif
+
+				/*
+				 * We only support = ANY and <> ALL (basically $in and $nin)
+				 * operators for joinclause of join relation.
+				 */
+				if (!(strncmp(oname, EQUALITY_OPERATOR_NAME, NAMEDATALEN) == 0 && saoe->useOr) &&
+					!(strncmp(oname, INEQUALITY_OPERATOR_NAME, NAMEDATALEN) == 0 && !saoe->useOr))
+					return false;
+
+				/*
+				 * Recurse to input subexpressions.
+				 *
+				 * We support same operators as joinclause for WHERE
+				 * conditions of simple as well as join relation.
+				 */
+				if (!foreign_expr_walker((Node *) saoe->args, glob_cxt,
+										 &inner_cxt)
+#ifndef META_DRIVER
+					|| (glob_cxt->opexprcount > 1)
+#endif
+					)
+					return false;
+
+				/*
+				 * If operator's input collation is not derived from a foreign
+				 * Var, it can't be sent to remote.
+				 */
+				if (saoe->inputcollid == InvalidOid)
+					 /* OK, inputs are all noncollatable */ ;
+				else if (inner_cxt.state != FDW_COLLATE_SAFE ||
+						 saoe->inputcollid != inner_cxt.collation)
+					return false;
+
+				/* Output is always boolean and so noncollatable. */
+				collation = InvalidOid;
+				state = FDW_COLLATE_NONE;
+            }
+            break;
 #endif
 		default:
 
@@ -1760,12 +1868,20 @@ foreign_expr_walker(Node *node, foreign_glob_cxt *glob_cxt,
 					/*
 					 * Non-default collation always beats default.
 					 */
-					if (outer_cxt->collation == DEFAULT_COLLATION_OID)
+					if (
+                        outer_cxt->collation == DEFAULT_COLLATION_OID ||
+                        outer_cxt->collation == C_COLLATION_OID ||
+                        outer_cxt->collation == POSIX_COLLATION_OID
+                        )
 					{
 						/* Override previous parent state */
 						outer_cxt->collation = collation;
 					}
-					else if (collation != DEFAULT_COLLATION_OID)
+					else if (
+                        collation != DEFAULT_COLLATION_OID &&
+                        collation != C_COLLATION_OID &&
+                        collation != POSIX_COLLATION_OID
+                        )
 					{
 						/*
 						 * Conflict; show state as indeterminate.  We don't

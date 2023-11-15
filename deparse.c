@@ -45,6 +45,8 @@
  * query, which is useful at the time of execution to prepare MongoDB query.
  */
 static void mongo_check_op_expr(OpExpr *node, MongoRelQualInfo *qual_info);
+static void mongo_check_scalar_array_op_expr(ScalarArrayOpExpr *node,
+                                             MongoRelQualInfo *qual_info);
 static void mongo_check_var(Var *column, MongoRelQualInfo *qual_info);
 
 /* Helper functions to form MongoDB query document. */
@@ -52,6 +54,9 @@ static void mongo_append_bool_expr(BoolExpr *node, BSON *queryDoc,
 								   pipeline_cxt *context);
 static void mongo_append_op_expr(OpExpr *node, BSON *child,
 								 pipeline_cxt *context);
+static void mongo_append_scalar_array_op_expr(ScalarArrayOpExpr *node,
+                                              BSON *child_doc,
+                                              pipeline_cxt *context);
 static void mongo_append_column_name(Var *column, BSON *queryDoc,
 									 pipeline_cxt *context);
 static void mongo_add_null_check(Var *column, BSON *expr,
@@ -151,6 +156,9 @@ mongo_check_qual(Expr *node, MongoRelQualInfo *qual_info)
 				}
 			}
 			break;
+        case T_ScalarArrayOpExpr:
+			mongo_check_scalar_array_op_expr((ScalarArrayOpExpr *) node, qual_info);
+			break;
 		case T_Const:
 		case T_Param:
 			/* Nothing to do here because we are looking only for Var's */
@@ -168,6 +176,48 @@ mongo_check_qual(Expr *node, MongoRelQualInfo *qual_info)
  */
 static void
 mongo_check_op_expr(OpExpr *node, MongoRelQualInfo *qual_info)
+{
+	HeapTuple	tuple;
+	Form_pg_operator form;
+	char		oprkind;
+	ListCell   *arg;
+
+	/* Retrieve information about the operator from the system catalog. */
+	tuple = SearchSysCache1(OPEROID, ObjectIdGetDatum(node->opno));
+	if (!HeapTupleIsValid(tuple))
+		elog(ERROR, "cache lookup failed for operator %u", node->opno);
+
+	form = (Form_pg_operator) GETSTRUCT(tuple);
+	oprkind = form->oprkind;
+
+	/* Sanity check. */
+	Assert((oprkind == 'r' && list_length(node->args) == 1) ||
+		   (oprkind == 'l' && list_length(node->args) == 1) ||
+		   (oprkind == 'b' && list_length(node->args) == 2));
+
+	/* Deparse left operand. */
+	if (oprkind == 'r' || oprkind == 'b')
+	{
+		arg = list_head(node->args);
+		mongo_check_qual(lfirst(arg), qual_info);
+	}
+
+	/* Deparse right operand. */
+	if (oprkind == 'l' || oprkind == 'b')
+	{
+		arg = list_tail(node->args);
+		mongo_check_qual(lfirst(arg), qual_info);
+	}
+
+	ReleaseSysCache(tuple);
+}
+
+/*
+ * mongo_check_scalar_array_op_expr
+ *		Check given scalar array operator expression.
+ */
+static void
+mongo_check_scalar_array_op_expr(ScalarArrayOpExpr *node, MongoRelQualInfo *qual_info)
 {
 	HeapTuple	tuple;
 	Form_pg_operator form;
@@ -349,6 +399,9 @@ mongo_append_expr(Expr *node, BSON *child_doc, pipeline_cxt *context)
 		case T_Aggref:
 			bsonAppendUTF8(child_doc, "0", "$v_having");
 			break;
+		case T_ScalarArrayOpExpr:
+			mongo_append_scalar_array_op_expr((ScalarArrayOpExpr *) node, child_doc, context);
+			break;
 		default:
 			elog(ERROR, "unsupported expression type to append: %d",
 				 (int) nodeTag(node));
@@ -503,6 +556,165 @@ mongo_append_op_expr(OpExpr *node, BSON *child_doc, pipeline_cxt *context)
 	context->opExprCount--;
 
 	bsonAppendFinishArray(&expr, &child1);
+	if (context->isBoolExpr)
+		bsonAppendFinishObject(&and_op, &expr);
+	else
+		bsonAppendFinishObject(child_doc, &expr);
+
+	/*
+	 * Add equality check for null values for columns involved in JOIN and
+	 * WHERE clauses.
+	 */
+	if (context->opExprCount == 0)
+	{
+		List	   *var_list;
+		ListCell   *lc;
+
+		var_list = pull_var_clause((Node *) node, PVC_RECURSE_PLACEHOLDERS ||
+								   PVC_RECURSE_AGGREGATES);
+
+		foreach(lc, var_list)
+		{
+			Var		   *var = (Var *) lfirst(lc);
+
+			if (context->isBoolExpr)
+				bsonAppendStartObject(&and_op, psprintf("%d", and_index++),
+									  &expr);
+			else
+				bsonAppendStartObject(child_doc,
+									  psprintf("%d", context->arrayIndex++),
+									  &expr);
+			mongo_add_null_check(var, &expr, context);
+
+			if (context->isBoolExpr)
+				bsonAppendFinishObject(&and_op, &expr);
+			else
+				bsonAppendFinishObject(child_doc, &expr);
+		}
+	}
+
+	if (context->isBoolExpr == true)
+	{
+		bsonAppendFinishArray(&and_obj, &and_op);
+		bsonAppendFinishObject(child_doc, &and_obj);
+	}
+
+	/* Retain array index */
+	context->arrayIndex = saved_array_index;
+
+	ReleaseSysCache(tuple);
+}
+
+/*
+ * mongo_append_scalar_array_op_expr
+ *		Deparse given scalar array operator expression.
+ *
+ * Build and append following syntax into $and array:
+ *
+ *      {"$in": [ "$age", ... ] }
+ *
+ * or for negated (<> ALL) version:
+ *
+ *      {"$not": {"$in": [ "$age", ... ] }}
+ *
+ * Each element of operator (e.g. "$eq") array is appended by function called
+ * mongo_append_column_name.
+ *
+ * In MongoDB, (null = null), (null < 1) is TRUE but that is FALSE in Postgres.
+ * To eliminate null value rows, add equality check for null values for columns
+ * involved in JOIN and WHERE clauses.  E.g. add the following syntax:
+ *
+ * 	    {"$ne": [ "$age", null ]}
+ */
+static void
+mongo_append_scalar_array_op_expr(ScalarArrayOpExpr *node, BSON *child_doc, pipeline_cxt *context)
+{
+	HeapTuple	tuple;
+	Form_pg_operator form;
+	char		oprkind;
+	ListCell   *arg;
+	BSON		expr;
+	BSON		child1;
+	BSON		child_not;
+	char	   *mongo_operator;
+	int			saved_array_index;
+	int			reset_index = 0;
+	int			and_index = 0;
+	BSON		and_op;
+	BSON		and_obj;
+
+	/* Increament operator expression count */
+	context->opExprCount++;
+
+	/* Retrieve information about the operator from the system catalog. */
+	tuple = SearchSysCache1(OPEROID, ObjectIdGetDatum(node->opno));
+	if (!HeapTupleIsValid(tuple))
+		elog(ERROR, "cache lookup failed for operator %u", node->opno);
+
+	form = (Form_pg_operator) GETSTRUCT(tuple);
+	oprkind = form->oprkind;
+
+	/* Sanity check. */
+	Assert((oprkind == 'r' && list_length(node->args) == 1) ||
+		   (oprkind == 'l' && list_length(node->args) == 1) ||
+		   (oprkind == 'b' && list_length(node->args) == 2));
+
+	if (context->isBoolExpr == true)
+	{
+		bsonAppendStartObject(child_doc, psprintf("%d", and_index++),
+							  &and_obj);
+		bsonAppendStartArray(&and_obj, "$and", &and_op);
+		bsonAppendStartObject(&and_op, psprintf("%d", context->arrayIndex),
+							  &expr);
+	}
+	else
+		bsonAppendStartObject(child_doc, psprintf("%d", context->arrayIndex),
+							  &expr);
+
+	/* Deparse operator name. */
+	mongo_operator = "$in";//mongo_operator_name(psprintf("%s %s",get_opname(node->opno), node->useOr ? "ANY" : "ALL"));
+    if (node->useOr == false) {
+		bsonAppendStartObject(&expr, "$not", &child_not);
+	    bsonAppendStartArray(&child_not, mongo_operator, &child1);
+    } else {
+	    bsonAppendStartArray(&expr, mongo_operator, &child1);
+    }
+
+
+	/* Save array index */
+	saved_array_index = context->arrayIndex;
+
+	/* Reset to zero to be used for nested arrays */
+	context->arrayIndex = reset_index;
+
+	/* Deparse left operand. */
+	if (oprkind == 'r' || oprkind == 'b')
+	{
+		arg = list_head(node->args);
+		mongo_append_expr(lfirst(arg), &child1, context);
+	}
+
+	/* Deparse right operand. */
+	if (oprkind == 'l' || oprkind == 'b')
+	{
+		if (oprkind == 'l')
+			context->arrayIndex = reset_index;
+		else
+			context->arrayIndex++;
+		arg = list_tail(node->args);
+		mongo_append_expr(lfirst(arg), &child1, context);
+	}
+
+	/* Decreament operator expression count */
+	context->opExprCount--;
+
+
+    if (node->useOr == false) {
+	    bsonAppendFinishArray(&child_not, &child1);
+		bsonAppendFinishObject(&expr, &child_not);
+    } else {
+	    bsonAppendFinishArray(&expr, &child1);
+    }
 	if (context->isBoolExpr)
 		bsonAppendFinishObject(&and_op, &expr);
 	else
