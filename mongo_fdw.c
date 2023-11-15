@@ -425,15 +425,15 @@ mongoGetForeignRelSize(PlannerInfo *root,
 
 	/*
 	 * Identify which baserestrictinfo clauses can be sent to the remote
-	 * server and which can't.  Only the OpExpr clauses are sent to the remote
-	 * server.
+	 * server and which can't.  Only the OpExpr and ScalarArrayOpExpr clauses
+     * are sent to the remote server.
 	 */
 	foreach(lc, baserel->baserestrictinfo)
 	{
 		RestrictInfo *ri = (RestrictInfo *) lfirst(lc);
 
 #ifndef META_DRIVER
-		if (IsA(ri->clause, OpExpr) &&
+		if ((IsA(ri->clause, OpExpr) || (IsA(ri->clause, ScalarArrayOpExpr)) &&
 			mongo_is_foreign_expr(root, baserel, ri->clause, false))
 #else
 		if (mongo_is_foreign_expr(root, baserel, ri->clause, false))
@@ -741,8 +741,8 @@ mongoGetForeignPlan(PlannerInfo *root,
 	 * previously determined to be safe or unsafe are shown in
 	 * fpinfo->remote_conds and fpinfo->local_conds.  Anything else in the
 	 * restrictionClauses list will be a join clause, which we have to check
-	 * for remote-safety.  Only the OpExpr clauses are sent to the remote
-	 * server.
+	 * for remote-safety.  Only the OpExpr and ScalarArrayOpExpr clauses
+     * are sent to the remote server.
 	 */
 	foreach(lc, restrictionClauses)
 	{
@@ -758,7 +758,7 @@ mongoGetForeignPlan(PlannerInfo *root,
 			remote_exprs = lappend(remote_exprs, rinfo->clause);
 		else if (list_member_ptr(fpinfo->local_conds, rinfo))
 			local_exprs = lappend(local_exprs, rinfo->clause);
-		else if (IsA(rinfo->clause, OpExpr) &&
+		else if ((IsA(rinfo->clause, OpExpr) || IsA(rinfo->clause, ScalarArrayOpExpr)) &&
 				 mongo_is_foreign_expr(root, foreignrel, rinfo->clause, false))
 			remote_exprs = lappend(remote_exprs, rinfo->clause);
 		else

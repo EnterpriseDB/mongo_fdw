@@ -324,6 +324,7 @@ mongo_query_document(ForeignScanState *scanStateNode)
 		context.isBoolExpr = false;
 		context.isJoinClause = false;
 		context.scanStateNode = scanStateNode;
+        context.arrayIndex = 0;
 
 		bsonAppendStartArray(filter, "pipeline", &match_stage);
 
@@ -515,6 +516,7 @@ mongo_query_document(ForeignScanState *scanStateNode)
 			context.isBoolExpr = false;
 			context.isJoinClause = true;
 			context.scanStateNode = scanStateNode;
+            context.arrayIndex = 0;
 
 			/* Form equivalent join qual clauses in MongoDB */
 			mongo_prepare_pipeline(joinclauses, &inner_pipeline, &context);
@@ -698,6 +700,7 @@ mongo_query_document(ForeignScanState *scanStateNode)
 			context.isBoolExpr = false;
 			context.isJoinClause = false;
 			context.scanStateNode = scanStateNode;
+            context.arrayIndex = 0;
 
 			/* $match stage.  Add a filter for the HAVING clause */
 			bsonAppendStartObject(&root_pipeline, psprintf("%d", root_index++),
@@ -1460,14 +1463,6 @@ foreign_expr_walker(Node *node, foreign_glob_cxt *glob_cxt,
 				Const	   *c = (Const *) node;
 
 				/*
-				 * We don't push down operators where the constant is an
-				 * array, since conditional operators for arrays in MongoDB
-				 * aren't properly defined.
-				 */
-				if (OidIsValid(get_element_type(c->consttype)))
-					return false;
-
-				/*
 				 * If the constant has nondefault collation, either it's of a
 				 * non-builtin type, or it reflects folding of a CollateExpr.
 				 * It's unsafe to send to the remote unless it's used in a
@@ -1745,6 +1740,58 @@ foreign_expr_walker(Node *node, foreign_glob_cxt *glob_cxt,
 					state = FDW_COLLATE_UNSAFE;
 			}
 			break;
+        case T_ScalarArrayOpExpr:
+            {
+                ScalarArrayOpExpr   *saoe = (ScalarArrayOpExpr*) node;
+				char	   *oname = get_opname(saoe->opno);
+
+                ereport(DEBUG1, (errmsg("FXW: expression is ScalarArrayOp %s", oname)));
+				/* Don't support operator expression in grouping targets */
+				if (IS_UPPER_REL(glob_cxt->foreignrel) &&
+					!glob_cxt->is_having_cond)
+
+#ifndef META_DRIVER
+				/* Increment the operator expression count */
+				glob_cxt->opexprcount++;
+#endif
+
+				/*
+				 * We only support = ANY and <> ALL (basically $in and $nin)
+				 * operators for joinclause of join relation.
+				 */
+				if (!(strncmp(oname, EQUALITY_OPERATOR_NAME, NAMEDATALEN) == 0 && saoe->useOr) &&
+					!(strncmp(oname, INEQUALITY_OPERATOR_NAME, NAMEDATALEN) == 0 && !saoe->useOr))
+					return false;
+
+				/*
+				 * Recurse to input subexpressions.
+				 *
+				 * We support same operators as joinclause for WHERE
+				 * conditions of simple as well as join relation.
+				 */
+				if (!foreign_expr_walker((Node *) saoe->args, glob_cxt,
+										 &inner_cxt)
+#ifndef META_DRIVER
+					|| (glob_cxt->opexprcount > 1)
+#endif
+					)
+					return false;
+
+				/*
+				 * If operator's input collation is not derived from a foreign
+				 * Var, it can't be sent to remote.
+				 */
+				if (saoe->inputcollid == InvalidOid)
+					 /* OK, inputs are all noncollatable */ ;
+				else if (inner_cxt.state != FDW_COLLATE_SAFE ||
+						 saoe->inputcollid != inner_cxt.collation)
+					return false;
+
+				/* Output is always boolean and so noncollatable. */
+				collation = InvalidOid;
+				state = FDW_COLLATE_NONE;
+            }
+            break;
 #endif
 		default:
 
