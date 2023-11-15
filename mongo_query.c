@@ -1236,6 +1236,48 @@ append_mongo_value(BSON *queryDocument, const char *keyName, Datum value,
 				pfree(elem_nulls);
 			}
 			break;
+		case NAMEARRAYOID:
+			{
+				ArrayType  *array;
+				Oid			elmtype;
+				int16		elmlen;
+				bool		elmbyval;
+				char		elmalign;
+				int			num_elems;
+				Datum	   *elem_values;
+				bool	   *elem_nulls;
+				int			i;
+				BSON		childDocument;
+
+				array = DatumGetArrayTypeP(value);
+				elmtype = ARR_ELEMTYPE(array);
+				get_typlenbyvalalign(elmtype, &elmlen, &elmbyval, &elmalign);
+
+				deconstruct_array(array, elmtype, elmlen, elmbyval, elmalign,
+								  &elem_values, &elem_nulls, &num_elems);
+
+				bsonAppendStartArray(queryDocument, keyName, &childDocument);
+				for (i = 0; i < num_elems; i++)
+				{
+                    char	   *outputString;
+                    Oid			outputFunctionId;
+                    bool		typeVarLength;
+                    bson_oid_t	bsonObjectId;
+
+					if (elem_nulls[i])
+						continue;
+
+                    getTypeOutputInfo(NAMEOID, &outputFunctionId, &typeVarLength);
+                    outputString = OidOutputFunctionCall(outputFunctionId, elem_values[i]);
+                    bsonOidFromString(&bsonObjectId, outputString);
+                    status = bsonAppendOid(&childDocument, keyName, &bsonObjectId);
+				}
+
+				bsonAppendFinishArray(queryDocument, &childDocument);
+				pfree(elem_values);
+				pfree(elem_nulls);
+			}
+			break;
 		case JSONOID:
 			{
 				char	   *outputString;
@@ -1745,10 +1787,10 @@ foreign_expr_walker(Node *node, foreign_glob_cxt *glob_cxt,
                 ScalarArrayOpExpr   *saoe = (ScalarArrayOpExpr*) node;
 				char	   *oname = get_opname(saoe->opno);
 
-                ereport(DEBUG1, (errmsg("FXW: expression is ScalarArrayOp %s", oname)));
 				/* Don't support operator expression in grouping targets */
 				if (IS_UPPER_REL(glob_cxt->foreignrel) &&
 					!glob_cxt->is_having_cond)
+					return false;
 
 #ifndef META_DRIVER
 				/* Increment the operator expression count */
