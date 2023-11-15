@@ -1529,8 +1529,9 @@ foreign_expr_walker(Node *node, foreign_glob_cxt *glob_cxt,
 				 * Bail out on planner internal params. We could perhaps pass
 				 * them to the remote server as regular params, but we don't
 				 * have the machinery to do that at the moment.
+                 * TODO: Check if the param type oid is allowable
 				 */
-				if (p->paramkind != PARAM_EXTERN)
+				if (p->paramkind != PARAM_EXTERN && p->paramkind != PARAM_EXEC)
 					return false;
 
 				/*
