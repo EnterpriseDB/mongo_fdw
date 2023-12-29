@@ -473,36 +473,110 @@ mongo_append_op_expr(OpExpr *node, BSON *child_doc, pipeline_cxt *context)
 	/* Deparse operator name. */
 	mongo_operator = mongo_operator_name(get_opname(node->opno));
 
-	bsonAppendStartArray(&expr, mongo_operator, &child1);
-
-	/* Save array index */
-	saved_array_index = context->arrayIndex;
-
-	/* Reset to zero to be used for nested arrays */
-	context->arrayIndex = reset_index;
-
-	/* Deparse left operand. */
-	if (oprkind == 'r' || oprkind == 'b')
+	if (strcmp(mongo_operator, "~~") == 0 || strcmp(mongo_operator, "~~*") == 0)
 	{
-		arg = list_head(node->args);
-		mongo_append_expr(lfirst(arg), &child1, context);
+		/* LIKE or ILIKE */
+
+		/* Save array index */
+		saved_array_index = context->arrayIndex;
+
+		/* Reset to zero to be used for nested arrays */
+		context->arrayIndex = reset_index;
+
+		/* Use temporary node where adding left & right operand values */
+		BSON *temp_obj = bsonCreate();
+		BSON_ITERATOR temp_iter = {NULL, 0};
+
+		/* Deparse left operand. */
+		if (oprkind == 'r' || oprkind == 'b')
+		{
+			arg = list_head(node->args);
+			mongo_append_expr(lfirst(arg), temp_obj, context);
+		}
+
+		/* Deparse right operand. */
+		if (oprkind == 'l' || oprkind == 'b')
+		{
+			if (oprkind == 'l')
+				context->arrayIndex = reset_index;
+			else
+				context->arrayIndex++;
+			arg = list_tail(node->args);
+			mongo_append_expr(lfirst(arg), temp_obj, context);
+		}
+
+		bsonFinish(temp_obj);
+
+		/* Add regexMatch operator */
+
+		if (bsonIterInit(&temp_iter, temp_obj) == false)
+		{
+			bsonDestroy(temp_obj);
+			elog(ERROR, "failed to initialize BSON iterator");
+		}
+
+		bsonAppendStartObject(&expr, "$regexMatch", &child1);
+
+		while (bsonIterNext(&temp_iter))
+		{
+			const char *bsonKey = bsonIterKey(&temp_iter);
+			const char *bsonVal = bsonIterString(&temp_iter);
+
+			if (strcmp(bsonKey, "0") == 0)
+			{
+				bsonAppendUTF8(&child1, "input", bsonVal);
+			}
+			else
+			{
+				bsonAppendUTF8(&child1, "regex", bsonVal);
+			}
+		}
+		if (strcmp(mongo_operator, "~~*") == 0)
+		{
+			/* ILIKE */
+			bsonAppendUTF8(&child1, "options", "i");
+		}
+		bsonDestroy(temp_obj);
+
+		/* Decreament operator expression count */
+		context->opExprCount--;
+
+		bsonAppendFinishObject(&expr, &child1);
+	}
+	else
+	{
+		bsonAppendStartArray(&expr, mongo_operator, &child1);
+
+		/* Save array index */
+		saved_array_index = context->arrayIndex;
+
+		/* Reset to zero to be used for nested arrays */
+		context->arrayIndex = reset_index;
+
+		/* Deparse left operand. */
+		if (oprkind == 'r' || oprkind == 'b')
+		{
+			arg = list_head(node->args);
+			mongo_append_expr(lfirst(arg), &child1, context);
+		}
+
+		/* Deparse right operand. */
+		if (oprkind == 'l' || oprkind == 'b')
+		{
+			if (oprkind == 'l')
+				context->arrayIndex = reset_index;
+			else
+				context->arrayIndex++;
+			arg = list_tail(node->args);
+			mongo_append_expr(lfirst(arg), &child1, context);
+		}
+
+		/* Decreament operator expression count */
+		context->opExprCount--;
+
+		bsonAppendFinishArray(&expr, &child1);
 	}
 
-	/* Deparse right operand. */
-	if (oprkind == 'l' || oprkind == 'b')
-	{
-		if (oprkind == 'l')
-			context->arrayIndex = reset_index;
-		else
-			context->arrayIndex++;
-		arg = list_tail(node->args);
-		mongo_append_expr(lfirst(arg), &child1, context);
-	}
-
-	/* Decreament operator expression count */
-	context->opExprCount--;
-
-	bsonAppendFinishArray(&expr, &child1);
 	if (context->isBoolExpr)
 		bsonAppendFinishObject(&and_op, &expr);
 	else

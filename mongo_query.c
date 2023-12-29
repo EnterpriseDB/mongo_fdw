@@ -834,7 +834,7 @@ char *
 mongo_operator_name(const char *operatorName)
 {
 	const char *mongoOperatorName = NULL;
-	const int32 nameCount = 14;
+	const int32 nameCount = 16;
 	static const char *nameMappings[][2] = {{"<", "$lt"},
 	{">", "$gt"},
 	{"<=", "$lte"},
@@ -848,7 +848,9 @@ mongo_operator_name(const char *operatorName)
 	{"%", "$mod"},
 	{"^", "$pow"},
 	{"|/", "$sqrt"},
-	{"@", "$abs"}};
+	{"@", "$abs"},
+	{"~~", "~~"},
+	{"~~*", "~~*"}};
 	int32		nameIndex;
 
 	for (nameIndex = 0; nameIndex < nameCount; nameIndex++)
