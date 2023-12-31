@@ -524,11 +524,11 @@ mongo_append_op_expr(OpExpr *node, BSON *child_doc, pipeline_cxt *context)
 
 			if (strcmp(bsonKey, "0") == 0)
 			{
-				bsonAppendUTF8(&child1, "input", bsonVal);
+				bsonAppendUTF8(&child1, "input", (char *)bsonVal);
 			}
 			else
 			{
-				bsonAppendUTF8(&child1, "regex", bsonVal);
+				bsonAppendUTF8(&child1, "regex", (char *)bsonVal);
 			}
 		}
 		if (strcmp(mongo_operator, "~~*") == 0)
