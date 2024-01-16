@@ -19,8 +19,15 @@ JSONC_VERSION=0.15-20200726
 MONGOC_INSTALL="${MONGOC_INSTALL_DIR}"
 JSONC_INSTALL="${JSONC_INSTALL_DIR}"
 
-# Don't allow input to the script
-if [ "$#" -ne 0 ]; then
+# Warn about the change in usage and the unsupported Legacy driver.
+if [ "$#" -ne 0 ] && [ "--with-master" == $1 ]; then
+    echo "WARNING: Please, update your call to the script, arguments are no longer used."
+    echo "Usage: autogen.sh"
+elif [ "$#" -ne 0 ] && [ "--with-legacy" == $1 ]; then
+    echo "ERROR: The Legacy driver is no longer supported."
+    echo "Usage: autogen.sh"
+    exit
+elif [ "$#" -ne 0 ]; then
     echo "Usage: autogen.sh"
     exit
 fi
