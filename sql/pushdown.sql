@@ -317,7 +317,7 @@ CREATE OPERATOR CLASS my_op_class FOR TYPE INT USING btree FAMILY my_op_family A
 EXPLAIN (COSTS FALSE, VERBOSE)
 SELECT * FROM f_mongo_test ORDER BY a USING OPERATOR(public.<^);
 EXPLAIN (COSTS FALSE, VERBOSE)
-SELECT MIN(a) FROM f_mongo_test ORDER BY 1 USING OPERATOR(public.<^);
+SELECT MIN(a) FROM f_mongo_test GROUP BY b ORDER BY 1 USING OPERATOR(public.<^);
 
 -- FDW-589: Test enable_order_by_pushdown option at server and table level.
 -- Test the option at server level.

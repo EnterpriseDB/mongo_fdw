@@ -4,7 +4,7 @@
  * 		Wrapper functions for remote MongoDB servers
  *
  * Portions Copyright (c) 2012-2014, PostgreSQL Global Development Group
- * Portions Copyright (c) 2004-2023, EnterpriseDB Corporation.
+ * Portions Copyright (c) 2004-2024, EnterpriseDB Corporation.
  * Portions Copyright (c) 2012–2014 Citus Data, Inc.
  *
  * IDENTIFICATION
@@ -17,20 +17,13 @@
 
 #include "mongo_fdw.h"
 
-#ifdef META_DRIVER
 #include "mongoc.h"
-#else
-#include "mongo.h"
-#endif
 #define json_object json_object_tmp
 
 #include <json.h>
 
-#ifdef META_DRIVER
 MONGO_CONN *mongoConnect(MongoFdwOptions *opt);
-#else
-MONGO_CONN *mongoConnect(MongoFdwOptions *opt);
-#endif
+
 void		mongoDisconnect(MONGO_CONN *conn);
 bool		mongoInsert(MONGO_CONN *conn, char *database, char *collection,
 						BSON *b);
@@ -56,17 +49,8 @@ int64_t		bsonIterInt64(BSON_ITERATOR *it);
 double		bsonIterDouble(BSON_ITERATOR *it);
 bool		bsonIterBool(BSON_ITERATOR *it);
 const char *bsonIterString(BSON_ITERATOR *it);
-#ifdef META_DRIVER
 const char *bsonIterBinData(BSON_ITERATOR *it, uint32_t *len);
-#else
-const char *bsonIterBinData(BSON_ITERATOR *it);
-int			bsonIterBinLen(BSON_ITERATOR *it);
-#endif
-#ifdef META_DRIVER
 const bson_oid_t *bsonIterOid(BSON_ITERATOR *it);
-#else
-bson_oid_t *bsonIterOid(BSON_ITERATOR *it);
-#endif
 time_t		bsonIterDate(BSON_ITERATOR *it);
 int			bsonIterType(BSON_ITERATOR *it);
 int			bsonIterNext(BSON_ITERATOR *it);
@@ -76,11 +60,7 @@ void		bsonOidToString(const bson_oid_t *o, char str[25]);
 const char *bsonIterCode(BSON_ITERATOR *i);
 const char *bsonIterRegex(BSON_ITERATOR *i);
 const char *bsonIterKey(BSON_ITERATOR *i);
-#ifdef META_DRIVER
 const bson_value_t *bsonIterValue(BSON_ITERATOR *i);
-#else
-const char *bsonIterValue(BSON_ITERATOR *i);
-#endif
 
 void		bsonIteratorFromBuffer(BSON_ITERATOR *i, const char *buffer);
 
@@ -99,7 +79,6 @@ bool		bsonAppendFinishArray(BSON *b, BSON *c);
 bool		bsonAppendStartObject(BSON *b, char *key, BSON *r);
 bool		bsonAppendFinishObject(BSON *b, BSON *r);
 bool		bsonAppendBson(BSON *b, char *key, BSON *c);
-bool		bsonFinish(BSON *b);
 bool		jsonToBsonAppendElement(BSON *bb, const char *k,
 									struct json_object *v);
 json_object *jsonTokenerPrase(char *s);

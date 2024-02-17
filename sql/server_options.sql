@@ -78,8 +78,6 @@ ALTER SERVER mongo_server OPTIONS (SET ssl 'false');
 SELECT a, b FROM f_mongo_test ORDER BY 1, 2;
 
 -- Alter server to add authentication_database option
--- authentication_database options is not supported with legacy driver
--- so below queries will fail when compiled with legacy driver.
 ALTER SERVER mongo_server OPTIONS (ADD authentication_database 'NOT_EXIST_DB');
 ALTER USER MAPPING FOR public SERVER mongo_server
   OPTIONS (ADD username :MONGO_USER_NAME, password :MONGO_PASS);

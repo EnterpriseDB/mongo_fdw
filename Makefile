@@ -1,6 +1,6 @@
 # mongo_fdw/Makefile
 #
-# Portions Copyright (c) 2004-2023, EnterpriseDB Corporation.
+# Portions Copyright (c) 2004-2024, EnterpriseDB Corporation.
 # Portions Copyright © 2012–2014 Citus Data, Inc.
 #
 
@@ -17,10 +17,10 @@ LIBJSON_OBJS =  $(LIBJSON)/json_util.o $(LIBJSON)/json_object.o $(LIBJSON)/json_
                                 $(LIBJSON)/arraylist.o $(LIBJSON)/random_seed.o $(LIBJSON)/debug.o $(LIBJSON)/strerror_override.o
 
 MONGO_INCLUDE = $(shell pkg-config --cflags libmongoc-1.0)
-PG_CPPFLAGS = --std=c99 $(MONGO_INCLUDE) -I$(LIBJSON) -DMETA_DRIVER
+PG_CPPFLAGS = --std=c99 $(MONGO_INCLUDE) -I$(LIBJSON)
 SHLIB_LINK = $(shell pkg-config --libs libmongoc-1.0)
 
-OBJS = connection.o option.o mongo_wrapper_meta.o mongo_fdw.o mongo_query.o deparse.o $(LIBJSON_OBJS)
+OBJS = connection.o option.o mongo_wrapper.o mongo_fdw.o mongo_query.o deparse.o $(LIBJSON_OBJS)
 
 
 EXTENSION = mongo_fdw

@@ -176,30 +176,30 @@ SELECT c1, sum(c1+2) FROM fdw137_t1 GROUP BY c1 HAVING min(c1) > 500 ORDER BY c1
 
 -- Aggregate with unshippable GROUP BY clause are not pushed
 EXPLAIN (VERBOSE, COSTS OFF)
-SELECT max(c4) FROM fdw137_t1 GROUP BY c4 * (random() <= 1)::int ORDER BY 1;
+SELECT avg(c4) FROM fdw137_t1 GROUP BY c4 * (random() <= 1)::int ORDER BY 1;
                                      QUERY PLAN                                     
 ------------------------------------------------------------------------------------
  Sort
-   Output: (max(c4)), ((c4 * ((random() <= '1'::double precision))::integer))
-   Sort Key: (max(fdw137_t1.c4))
+   Output: (avg(c4)), ((c4 * ((random() <= '1'::double precision))::integer))
+   Sort Key: (avg(fdw137_t1.c4))
    ->  HashAggregate
-         Output: max(c4), ((c4 * ((random() <= '1'::double precision))::integer))
+         Output: avg(c4), ((c4 * ((random() <= '1'::double precision))::integer))
          Group Key: (fdw137_t1.c4 * ((random() <= '1'::double precision))::integer)
          ->  Foreign Scan on public.fdw137_t1
                Output: (c4 * ((random() <= '1'::double precision))::integer), c4
                Foreign Namespace: mongo_fdw_regress.test_tbl1
 (9 rows)
 
-SELECT max(c4) FROM fdw137_t1 GROUP BY c4 * (random() <= 1)::int ORDER BY 1;
- max  
-------
-  400
-  600
-  700
-  800
-  900
- 1300
-     
+SELECT avg(c4) FROM fdw137_t1 GROUP BY c4 * (random() <= 1)::int ORDER BY 1;
+          avg          
+-----------------------
+  400.0000000000000000
+  600.0000000000000000
+  700.0000000000000000
+  800.0000000000000000
+  900.0000000000000000
+ 1300.0000000000000000
+                      
 (7 rows)
 
 EXPLAIN (VERBOSE, COSTS OFF)
@@ -1482,8 +1482,8 @@ SELECT a32, sum(a32) FROM f_test_large GROUP BY
 (3 rows)
 
 -- FDW-131: Limit and offset pushdown with Aggregate pushdown.
-SELECT min(c1), c1 FROM fdw137_t2 GROUP BY c1 ORDER BY c1;
- min | c1 
+SELECT avg(c1), c1 FROM fdw137_t2 GROUP BY c1 ORDER BY c1;
+ avg | c1 
 -----+----
   10 | 10
   20 | 20
@@ -1494,47 +1494,47 @@ SELECT min(c1), c1 FROM fdw137_t2 GROUP BY c1 ORDER BY c1;
 (6 rows)
 
 EXPLAIN (VERBOSE, COSTS OFF)
-SELECT min(c1), c1 FROM fdw137_t2 GROUP BY c1 ORDER BY c1 ASC NULLS FIRST LIMIT 1 OFFSET 1;
+SELECT sum(c1), c1 FROM fdw137_t2 GROUP BY c1 ORDER BY c1 ASC NULLS FIRST LIMIT 1 OFFSET 1;
                                 QUERY PLAN                                 
 ---------------------------------------------------------------------------
  Foreign Scan
-   Output: (min(c1)), c1
+   Output: (sum(c1)), c1
    Foreign Namespace: Aggregate on (mongo_fdw_regress.test_tbl2 fdw137_t2)
 (3 rows)
 
-SELECT min(c1), c1 FROM fdw137_t2 GROUP BY c1 ORDER BY c1 ASC NULLS FIRST LIMIT 1 OFFSET 1;
- min | c1 
+SELECT sum(c1), c1 FROM fdw137_t2 GROUP BY c1 ORDER BY c1 ASC NULLS FIRST LIMIT 1 OFFSET 1;
+ sum | c1 
 -----+----
   10 | 10
 (1 row)
 
 -- Limit 0, Offset 0 with aggregates.
 EXPLAIN (VERBOSE, COSTS OFF)
-SELECT min(c1), c1 FROM fdw137_t2 GROUP BY c1 ORDER BY c1 ASC NULLS FIRST LIMIT 0 OFFSET 0;
+SELECT sum(c1), c1 FROM fdw137_t2 GROUP BY c1 ORDER BY c1 ASC NULLS FIRST LIMIT 0 OFFSET 0;
                                 QUERY PLAN                                 
 ---------------------------------------------------------------------------
  Foreign Scan
-   Output: (min(c1)), c1
+   Output: (sum(c1)), c1
    Foreign Namespace: Aggregate on (mongo_fdw_regress.test_tbl2 fdw137_t2)
 (3 rows)
 
-SELECT min(c1), c1 FROM fdw137_t2 GROUP BY c1 ORDER BY c1 ASC NULLS FIRST LIMIT 0 OFFSET 0;
- min | c1 
+SELECT sum(c1), c1 FROM fdw137_t2 GROUP BY c1 ORDER BY c1 ASC NULLS FIRST LIMIT 0 OFFSET 0;
+ sum | c1 
 -----+----
 (0 rows)
 
 -- Limit NULL
 EXPLAIN (VERBOSE, COSTS OFF)
-SELECT min(c1), c1 FROM fdw137_t2 GROUP BY c1 ORDER BY c1 ASC NULLS FIRST LIMIT NULL OFFSET 2;
+SELECT sum(c1), c1 FROM fdw137_t2 GROUP BY c1 ORDER BY c1 ASC NULLS FIRST LIMIT NULL OFFSET 2;
                                 QUERY PLAN                                 
 ---------------------------------------------------------------------------
  Foreign Scan
-   Output: (min(c1)), c1
+   Output: (sum(c1)), c1
    Foreign Namespace: Aggregate on (mongo_fdw_regress.test_tbl2 fdw137_t2)
 (3 rows)
 
-SELECT min(c1), c1 FROM fdw137_t2 GROUP BY c1 ORDER BY c1 ASC NULLS FIRST LIMIT NULL OFFSET 2;
- min | c1 
+SELECT sum(c1), c1 FROM fdw137_t2 GROUP BY c1 ORDER BY c1 ASC NULLS FIRST LIMIT NULL OFFSET 2;
+ sum | c1 
 -----+----
   20 | 20
   30 | 30
@@ -1544,16 +1544,16 @@ SELECT min(c1), c1 FROM fdw137_t2 GROUP BY c1 ORDER BY c1 ASC NULLS FIRST LIMIT 
 
 -- Limit ALL
 EXPLAIN (VERBOSE, COSTS OFF)
-SELECT min(c1), c1 FROM fdw137_t2 GROUP BY c1 ORDER BY c1 ASC NULLS FIRST LIMIT ALL OFFSET 2;
+SELECT sum(c1), c1 FROM fdw137_t2 GROUP BY c1 ORDER BY c1 ASC NULLS FIRST LIMIT ALL OFFSET 2;
                                 QUERY PLAN                                 
 ---------------------------------------------------------------------------
  Foreign Scan
-   Output: (min(c1)), c1
+   Output: (sum(c1)), c1
    Foreign Namespace: Aggregate on (mongo_fdw_regress.test_tbl2 fdw137_t2)
 (3 rows)
 
-SELECT min(c1), c1 FROM fdw137_t2 GROUP BY c1 ORDER BY c1 ASC NULLS FIRST LIMIT ALL OFFSET 2;
- min | c1 
+SELECT sum(c1), c1 FROM fdw137_t2 GROUP BY c1 ORDER BY c1 ASC NULLS FIRST LIMIT ALL OFFSET 2;
+ sum | c1 
 -----+----
   20 | 20
   30 | 30
@@ -1563,51 +1563,45 @@ SELECT min(c1), c1 FROM fdw137_t2 GROUP BY c1 ORDER BY c1 ASC NULLS FIRST LIMIT 
 
 -- Limit with -ve value. Shouldn't pushdown.
 EXPLAIN (VERBOSE, COSTS FALSE)
-SELECT c1, max(c1) FROM fdw137_t2 GROUP BY c1 ORDER BY 1 ASC NULLS FIRST LIMIT -1;
-                          QUERY PLAN                          
---------------------------------------------------------------
- Limit
-   Output: c1, (max(c1))
-   ->  GroupAggregate
-         Output: c1, max(c1)
-         Group Key: fdw137_t2.c1
-         ->  Foreign Scan on public.fdw137_t2
-               Output: _id, c1, c2, c3
-               Foreign Namespace: mongo_fdw_regress.test_tbl2
-(8 rows)
-
--- Should throw an error.
-SELECT c1, max(c1) FROM fdw137_t2 GROUP BY c1 ORDER BY 1 ASC NULLS FIRST LIMIT -1;
-ERROR:  LIMIT must not be negative
--- Offset with -ve value. Shouldn't pushdown.
-EXPLAIN (VERBOSE, COSTS FALSE)
-SELECT c1, max(c1) FROM fdw137_t2 GROUP BY c1 ORDER BY 1 ASC NULLS FIRST OFFSET -2;
+SELECT c1, sum(c1) FROM fdw137_t2 GROUP BY c1 ORDER BY 1 ASC NULLS FIRST LIMIT -1;
                                    QUERY PLAN                                    
 ---------------------------------------------------------------------------------
  Limit
-   Output: c1, (max(c1))
+   Output: c1, (sum(c1))
    ->  Foreign Scan
-         Output: c1, (max(c1))
+         Output: c1, (sum(c1))
          Foreign Namespace: Aggregate on (mongo_fdw_regress.test_tbl2 fdw137_t2)
 (5 rows)
 
 -- Should throw an error.
-SELECT c1, max(c1) FROM fdw137_t2 GROUP BY c1 ORDER BY 1 ASC NULLS FIRST OFFSET -2;
+SELECT c1, sum(c1) FROM fdw137_t2 GROUP BY c1 ORDER BY 1 ASC NULLS FIRST LIMIT -1;
+ERROR:  LIMIT must not be negative
+-- Offset with -ve value. Shouldn't pushdown.
+EXPLAIN (VERBOSE, COSTS FALSE)
+SELECT c1, sum(c1) FROM fdw137_t2 GROUP BY c1 ORDER BY 1 ASC NULLS FIRST OFFSET -2;
+                                   QUERY PLAN                                    
+---------------------------------------------------------------------------------
+ Limit
+   Output: c1, (sum(c1))
+   ->  Foreign Scan
+         Output: c1, (sum(c1))
+         Foreign Namespace: Aggregate on (mongo_fdw_regress.test_tbl2 fdw137_t2)
+(5 rows)
+
+-- Should throw an error.
+SELECT c1, sum(c1) FROM fdw137_t2 GROUP BY c1 ORDER BY 1 ASC NULLS FIRST OFFSET -2;
 ERROR:  OFFSET must not be negative
 -- Limit/Offset with -ve value. Shouldn't pushdown.
 EXPLAIN (VERBOSE, COSTS FALSE)
 SELECT c1, avg(c1) FROM fdw137_t2 GROUP BY c1 ORDER BY c1 ASC NULLS FIRST LIMIT -1 OFFSET -2;
-                          QUERY PLAN                          
---------------------------------------------------------------
+                                   QUERY PLAN                                    
+---------------------------------------------------------------------------------
  Limit
    Output: c1, (avg(c1))
-   ->  GroupAggregate
-         Output: c1, avg(c1)
-         Group Key: fdw137_t2.c1
-         ->  Foreign Scan on public.fdw137_t2
-               Output: _id, c1, c2, c3
-               Foreign Namespace: mongo_fdw_regress.test_tbl2
-(8 rows)
+   ->  Foreign Scan
+         Output: c1, (avg(c1))
+         Foreign Namespace: Aggregate on (mongo_fdw_regress.test_tbl2 fdw137_t2)
+(5 rows)
 
 -- Should throw an error.
 SELECT c1, avg(c1) FROM fdw137_t2 GROUP BY c1 ORDER BY c1 ASC NULLS FIRST LIMIT -1 OFFSET -2;

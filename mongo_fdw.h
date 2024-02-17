@@ -4,7 +4,7 @@
  * 		Foreign-data wrapper for remote MongoDB servers
  *
  * Portions Copyright (c) 2012-2014, PostgreSQL Global Development Group
- * Portions Copyright (c) 2004-2023, EnterpriseDB Corporation.
+ * Portions Copyright (c) 2004-2024, EnterpriseDB Corporation.
  * Portions Copyright (c) 2012–2014 Citus Data, Inc.
  *
  * IDENTIFICATION
@@ -15,14 +15,9 @@
 #ifndef MONGO_FDW_H
 #define MONGO_FDW_H
 
-#include "config.h"
 #include "mongo_wrapper.h"
 
-#ifdef META_DRIVER
 #include "mongoc.h"
-#else
-#include "mongo.h"
-#endif
 #include "access/reloptions.h"
 #include "catalog/pg_foreign_server.h"
 #include "catalog/pg_foreign_table.h"
@@ -53,7 +48,6 @@
 #include "utils/memutils.h"
 #include "utils/timestamp.h"
 
-#ifdef META_DRIVER
 #define BSON bson_t
 #define BSON_TYPE 							bson_type_t
 #define BSON_ITERATOR 						bson_iter_t
@@ -97,45 +91,6 @@
 #define BSON_ITER_NEXT 						bson_iter_next
 #define BSON_ITER_TYPE 						bson_iter_type
 #define BSON_ITER_BINARY 					bson_iter_binary
-#else
-#define BSON 								bson
-#define BSON_TYPE 							bson_type
-#define BSON_ITERATOR 						bson_iterator
-#define MONGO_CONN 							mongo
-#define MONGO_CURSOR 						mongo_cursor
-#define BSON_TYPE_DOCUMENT 					BSON_OBJECT
-#define BSON_TYPE_NULL 						BSON_NULL
-#define BSON_TYPE_ARRAY						BSON_ARRAY
-#define BSON_TYPE_INT32 					BSON_INT
-#define BSON_TYPE_INT64 					BSON_LONG
-#define BSON_TYPE_DOUBLE 					BSON_DOUBLE
-#define BSON_TYPE_BINDATA 					BSON_BINDATA
-#define BSON_TYPE_BOOL 						BSON_BOOL
-#define BSON_TYPE_UTF8 						BSON_STRING
-#define BSON_TYPE_OID 						BSON_OID
-#define BSON_TYPE_DATE_TIME 				BSON_DATE
-#define BSON_TYPE_SYMBOL 					BSON_SYMBOL
-#define BSON_TYPE_UNDEFINED 				BSON_UNDEFINED
-#define BSON_TYPE_REGEX 					BSON_REGEX
-#define BSON_TYPE_CODE 						BSON_CODE
-#define BSON_TYPE_CODEWSCOPE 				BSON_CODEWSCOPE
-#define BSON_TYPE_TIMESTAMP 				BSON_TIMESTAMP
-
-#define BSON_ITER_BOOL 						bson_iterator_bool
-#define BSON_ITER_DOUBLE 					bson_iterator_double
-#define BSON_ITER_INT32 					bson_iterator_int
-#define BSON_ITER_INT64 					bson_iterator_long
-#define BSON_ITER_OID 						bson_iterator_oid
-#define BSON_ITER_UTF8 						bson_iterator_string
-#define BSON_ITER_REGEX 					bson_iterator_regex
-#define BSON_ITER_DATE_TIME 				bson_iterator_date
-#define BSON_ITER_CODE 						bson_iterator_code
-#define BSON_ITER_VALUE 					bson_iterator_value
-#define BSON_ITER_KEY 						bson_iterator_key
-#define BSON_ITER_NEXT 						bson_iterator_next
-#define BSON_ITER_TYPE 						bson_iterator_type
-#define BSON_ITER_BINARY 					bson_iterator_bin_data
-#endif
 
 /* Defines for valid option names */
 #define OPTION_NAME_ADDRESS					"address"
@@ -145,7 +100,6 @@
 #define OPTION_NAME_USERNAME 				"username"
 #define OPTION_NAME_PASSWORD 				"password"
 #define OPTION_NAME_USE_REMOTE_ESTIMATE	    "use_remote_estimate"
-#ifdef META_DRIVER
 #define OPTION_NAME_READ_PREFERENCE 		"read_preference"
 #define OPTION_NAME_AUTHENTICATION_DATABASE "authentication_database"
 #define OPTION_NAME_REPLICA_SET 			"replica_set"
@@ -159,7 +113,6 @@
 #define OPTION_NAME_ENABLE_JOIN_PUSHDOWN	"enable_join_pushdown"
 #define OPTION_NAME_ENABLE_AGGREGATE_PUSHDOWN "enable_aggregate_pushdown"
 #define OPTION_NAME_ENABLE_ORDER_BY_PUSHDOWN "enable_order_by_pushdown"
-#endif
 
 /* Default values for option parameters */
 #define DEFAULT_IP_ADDRESS 					"127.0.0.1"
@@ -203,19 +156,13 @@ typedef struct MongoValidOption
 } MongoValidOption;
 
 /* Array of options that are valid for mongo_fdw */
-#ifdef META_DRIVER
 static const uint32 ValidOptionCount = 23;
-#else
-static const uint32 ValidOptionCount = 7;
-#endif
 static const MongoValidOption ValidOptionArray[] =
 {
 	/* Foreign server options */
 	{OPTION_NAME_ADDRESS, ForeignServerRelationId},
 	{OPTION_NAME_PORT, ForeignServerRelationId},
 	{OPTION_NAME_USE_REMOTE_ESTIMATE, ForeignServerRelationId},
-
-#ifdef META_DRIVER
 	{OPTION_NAME_READ_PREFERENCE, ForeignServerRelationId},
 	{OPTION_NAME_AUTHENTICATION_DATABASE, ForeignServerRelationId},
 	{OPTION_NAME_REPLICA_SET, ForeignServerRelationId},
@@ -229,16 +176,13 @@ static const MongoValidOption ValidOptionArray[] =
 	{OPTION_NAME_ENABLE_JOIN_PUSHDOWN, ForeignServerRelationId},
 	{OPTION_NAME_ENABLE_AGGREGATE_PUSHDOWN, ForeignServerRelationId},
 	{OPTION_NAME_ENABLE_ORDER_BY_PUSHDOWN, ForeignServerRelationId},
-#endif
 
 	/* Foreign table options */
 	{OPTION_NAME_DATABASE, ForeignTableRelationId},
 	{OPTION_NAME_COLLECTION, ForeignTableRelationId},
-#ifdef META_DRIVER
 	{OPTION_NAME_ENABLE_JOIN_PUSHDOWN, ForeignTableRelationId},
 	{OPTION_NAME_ENABLE_AGGREGATE_PUSHDOWN, ForeignTableRelationId},
 	{OPTION_NAME_ENABLE_ORDER_BY_PUSHDOWN, ForeignTableRelationId},
-#endif
 
 	/* User mapping options */
 	{OPTION_NAME_USERNAME, UserMappingRelationId},
@@ -259,7 +203,6 @@ typedef struct MongoFdwOptions
 	char	   *svr_username;
 	char	   *svr_password;
 	bool		use_remote_estimate;	/* use remote estimate for rows */
-#ifdef META_DRIVER
 	char	   *readPreference;
 	char	   *authenticationDatabase;
 	char	   *replicaSet;
@@ -273,7 +216,6 @@ typedef struct MongoFdwOptions
 	bool		enable_join_pushdown;
 	bool		enable_aggregate_pushdown;
 	bool		enable_order_by_pushdown;
-#endif
 } MongoFdwOptions;
 
 /*

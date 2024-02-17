@@ -4,7 +4,7 @@
  * 		Query deparser for mongo_fdw
  *
  * Portions Copyright (c) 2012-2014, PostgreSQL Global Development Group
- * Portions Copyright (c) 2004-2023, EnterpriseDB Corporation.
+ * Portions Copyright (c) 2004-2024, EnterpriseDB Corporation.
  * Portions Copyright (c) 2012–2014 Citus Data, Inc.
  *
  * IDENTIFICATION
@@ -23,11 +23,7 @@
 #if PG_VERSION_NUM >= 130000
 #include "common/hashfn.h"
 #endif
-#ifdef META_DRIVER
 #include "mongoc.h"
-#else
-#include "mongo.h"
-#endif
 #include "mongo_query.h"
 #if PG_VERSION_NUM < 120000
 #include "nodes/relation.h"

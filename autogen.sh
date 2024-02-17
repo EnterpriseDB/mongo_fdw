@@ -6,7 +6,7 @@
 #             Foreign-data wrapper for remote MongoDB servers
 #
 # Portions Copyright (c) 2012-2014, PostgreSQL Global Development Group
-# Portions Copyright (c) 2004-2023, EnterpriseDB Corporation.
+# Portions Copyright (c) 2004-2024, EnterpriseDB Corporation.
 #
 # IDENTIFICATION
 #             autogen.sh
@@ -19,8 +19,9 @@ JSONC_VERSION=0.15-20200726
 MONGOC_INSTALL="${MONGOC_INSTALL_DIR}"
 JSONC_INSTALL="${JSONC_INSTALL_DIR}"
 
-if [ "$#" -ne 1 ]; then
-    echo "Usage: autogen.sh --[with-legacy | with-master]"
+# Don't allow input to the script
+if [ "$#" -ne 0 ]; then
+    echo "Usage: autogen.sh"
     exit
 fi
 
@@ -41,17 +42,6 @@ function checkout_mongo_driver
 	rm -rf mongo-c-driver-$MONGOC_VERSION.tar.gz
 }
 
-###
-# Pull the legacy branch of the Mongo C Driver
-#
-function checkout_legacy_branch
-{
-	rm -rf mongo-c-driver &&
-	wget https://github.com/mongodb/mongo-c-driver/archive/v0.8.tar.gz &&
-	tar -zxf v0.8.tar.gz &&
-	mv  mongo-c-driver-0.8 mongo-c-driver &&
-	rm -rf v0.8.tar.gz
-}
 ##
 # Pull the json-c library
 #
@@ -89,60 +79,17 @@ function install_mongoc_driver
 	cd ..
 }
 
-###
-# Cleanup the system
-#
-function cleanup
-{
-	rm -f config.h
-	touch config.h
-}
+checkout_mongo_driver &&
+checkout_json_lib &&
+install_mongoc_driver &&
+install_json_lib &&
+export PKG_CONFIG_PATH=mongo-c-driver/src/libmongoc/src:mongo-c-driver/src/libbson/src
 
-###
-# Create a config file and append #define META_DRIVER which will be
-# used in case of Meta Driver (master branch) option.
-#
-function create_config
-{
-	echo "#ifdef __CONFIG__" >> config.h &&
-	echo "#define META_DRIVER" >> config.h &&
-	echo "#endif" >> config.h
-}
-
-cleanup
-
-if [ "--with-legacy" = $1 ]; then
-	echo "Warning: The legacy driver support has been deprecated in mongo_fdw 5.4.0 and is expected to be removed entirely in a future release."
-	checkout_json_lib &&
-	checkout_legacy_branch &&
-	install_json_lib &&
-	cp Makefile.legacy Makefile
-
-	ret=$?
-	if [ "$ret" -ne 0 ]; then
-		echo "Failed"
-		exit $ret
-	else
-		echo "Done"
-		exit 0
-	fi
-elif [ "--with-master" == $1 ]; then
-	checkout_mongo_driver &&
-	checkout_json_lib &&
-	install_mongoc_driver &&
-	install_json_lib &&
-	create_config &&
-	export PKG_CONFIG_PATH=mongo-c-driver/src/libmongoc/src:mongo-c-driver/src/libbson/src &&
-	cp Makefile.meta Makefile
-
-	ret=$?
-	if [ "$ret" -ne 0 ]; then
-		echo "Failed"
-		exit $ret
-	else
-		echo "Done"
-		exit 0
-	fi
+ret=$?
+if [ "$ret" -ne 0 ]; then
+	echo "Failed"
+	exit $ret
 else
-	echo "Usage: autogen.sh --[with-legacy | with-master]"
+	echo "Done"
+	exit 0
 fi

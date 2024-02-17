@@ -4,7 +4,7 @@
  * 		FDW option handling for mongo_fdw
  *
  * Portions Copyright (c) 2012-2014, PostgreSQL Global Development Group
- * Portions Copyright (c) 2004-2023, EnterpriseDB Corporation.
+ * Portions Copyright (c) 2004-2024, EnterpriseDB Corporation.
  * Portions Copyright (c) 2012–2014 Citus Data, Inc.
  *
  * IDENTIFICATION
@@ -106,13 +106,11 @@ mongo_fdw_validator(PG_FUNCTION_ARGS)
 								"unsigned short", intString)));
 		}
 		else if (strcmp(optionName, OPTION_NAME_USE_REMOTE_ESTIMATE) == 0
-#ifdef META_DRIVER
 				 || strcmp(optionName, OPTION_NAME_WEAK_CERT) == 0 ||
 				 strcmp(optionName, OPTION_NAME_ENABLE_JOIN_PUSHDOWN) == 0 ||
 				 strcmp(optionName, OPTION_NAME_SSL) == 0 ||
 				 strcmp(optionName, OPTION_NAME_ENABLE_AGGREGATE_PUSHDOWN) == 0 ||
 				 strcmp(optionName, OPTION_NAME_ENABLE_ORDER_BY_PUSHDOWN) == 0
-#endif
 			)
 		{
 			/* These accept only boolean values */
@@ -184,20 +182,17 @@ mongo_get_options(Oid foreignTableId)
 	options = (MongoFdwOptions *) palloc0(sizeof(MongoFdwOptions));
 
 	options->use_remote_estimate = false;
-#ifdef META_DRIVER
 	options->ssl = false;
 	options->weak_cert_validation = false;
 	options->enable_join_pushdown = true;
 	options->enable_aggregate_pushdown = true;
 	options->enable_order_by_pushdown = true;
-#endif
 
 	/* Loop through the options */
 	foreach(lc, optionList)
 	{
 		DefElem    *def = (DefElem *) lfirst(lc);
 
-#ifdef META_DRIVER
 		if (strcmp(def->defname, OPTION_NAME_READ_PREFERENCE) == 0)
 			options->readPreference = defGetString(def);
 
@@ -240,7 +235,6 @@ mongo_get_options(Oid foreignTableId)
 			options->enable_order_by_pushdown = defGetBoolean(def);
 
 		else					/* This is for continuation */
-#endif
 
 		if (strcmp(def->defname, OPTION_NAME_ADDRESS) == 0)
 			options->svr_address = pstrdup(defGetString(def));

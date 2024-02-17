@@ -4,7 +4,7 @@
  * 		Foreign-data wrapper for remote MongoDB servers
  *
  * Portions Copyright (c) 2012-2014, PostgreSQL Global Development Group
- * Portions Copyright (c) 2004-2023, EnterpriseDB Corporation.
+ * Portions Copyright (c) 2004-2024, EnterpriseDB Corporation.
  * Portions Copyright (c) 2012–2014 Citus Data, Inc.
  *
  * IDENTIFICATION
@@ -70,7 +70,6 @@ PG_MODULE_MAGIC;
  */
 #define CODE_VERSION   50501
 
-#ifdef META_DRIVER
 /*
  * Macro to check unsupported sorting methods.  Currently, ASC NULLS FIRST and
  * DESC NULLS LAST give the same sorting result on MongoDB and Postgres.  So,
@@ -94,7 +93,6 @@ PG_MODULE_MAGIC;
 static bool enable_join_pushdown = true;
 static bool enable_order_by_pushdown = true;
 static bool enable_aggregate_pushdown = true;
-#endif
 
 /*
  * This enum describes what's kept in the fdw_private list for a ForeignPath.
@@ -180,7 +178,6 @@ static void mongoBeginForeignInsert(ModifyTableState *mtstate,
 									ResultRelInfo *resultRelInfo);
 static void mongoEndForeignInsert(EState *estate,
 								  ResultRelInfo *resultRelInfo);
-#ifdef META_DRIVER
 static void mongoGetForeignJoinPaths(PlannerInfo *root, RelOptInfo *joinrel,
 									 RelOptInfo *outerrel,
 									 RelOptInfo *innerrel,
@@ -191,7 +188,6 @@ static void mongoGetForeignUpperPaths(PlannerInfo *root,
 									  RelOptInfo *input_rel,
 									  RelOptInfo *output_rel,
 									  void *extra);
-#endif
 
 /*
  * Helper functions
@@ -219,7 +215,6 @@ static int	mongo_acquire_sample_rows(Relation relation,
 									  double *totalRowCount,
 									  double *totalDeadRowCount);
 static void mongo_fdw_exit(int code, Datum arg);
-#ifdef META_DRIVER
 static bool mongo_foreign_join_ok(PlannerInfo *root, RelOptInfo *joinrel,
 								  JoinType jointype, RelOptInfo *outerrel,
 								  RelOptInfo *innerrel,
@@ -238,16 +233,9 @@ static void mongo_add_foreign_final_paths(PlannerInfo *root,
 										  RelOptInfo *final_rel,
 										  FinalPathExtraData *extra);
 #endif
-#endif
-#ifndef META_DRIVER
-static const char *escape_json_string(const char *string);
-static void bson_to_json_string(StringInfo output, BSON_ITERATOR iter,
-								bool isArray);
-#endif
 static void mongoEstimateCosts(RelOptInfo *baserel, Cost *startup_cost,
 							   Cost *total_cost, Oid foreigntableid);
 
-#ifdef META_DRIVER
 static List *mongo_get_useful_ecs_for_relation(PlannerInfo *root,
 											   RelOptInfo *rel);
 static List *mongo_get_useful_pathkeys_for_relation(PlannerInfo *root,
@@ -264,7 +252,6 @@ static EquivalenceMember *mongo_find_em_for_rel_target(PlannerInfo *root,
 static void mongo_add_foreign_ordered_paths(PlannerInfo *root,
 											RelOptInfo *input_rel,
 											RelOptInfo *ordered_rel);
-#endif
 #endif
 
 /* The null action object used for pure validation */
@@ -289,7 +276,6 @@ JsonSemAction nullSemAction =
 void
 _PG_init(void)
 {
-#ifdef META_DRIVER
 	/*
 	 * Sometimes getting a join or sorted result from MongoDB server is slower
 	 * than performing those operations locally.  To have that flexibility add
@@ -330,7 +316,6 @@ _PG_init(void)
 
 	/* Initialize MongoDB C driver */
 	mongoc_init();
-#endif
 
 	on_proc_exit(&mongo_fdw_exit, PointerGetDatum(NULL));
 }
@@ -374,13 +359,11 @@ mongo_fdw_handler(PG_FUNCTION_ARGS)
 	fdwRoutine->BeginForeignInsert = mongoBeginForeignInsert;
 	fdwRoutine->EndForeignInsert = mongoEndForeignInsert;
 
-#ifdef META_DRIVER
 	/* Support function for join push-down */
 	fdwRoutine->GetForeignJoinPaths = mongoGetForeignJoinPaths;
 
 	/* Support functions for upper relation push-down */
 	fdwRoutine->GetForeignUpperPaths = mongoGetForeignUpperPaths;
-#endif
 
 	PG_RETURN_POINTER(fdwRoutine);
 }
@@ -393,10 +376,8 @@ static void
 mongo_fdw_exit(int code, Datum arg)
 {
 	mongo_cleanup_connection();
-#ifdef META_DRIVER
 	/* Release all memory and other resources allocated by the driver */
 	mongoc_cleanup();
-#endif
 }
 
 /*
@@ -432,12 +413,7 @@ mongoGetForeignRelSize(PlannerInfo *root,
 	{
 		RestrictInfo *ri = (RestrictInfo *) lfirst(lc);
 
-#ifndef META_DRIVER
-		if (IsA(ri->clause, OpExpr) &&
-			mongo_is_foreign_expr(root, baserel, ri->clause, false))
-#else
 		if (mongo_is_foreign_expr(root, baserel, ri->clause, false))
-#endif
 			fpinfo->remote_conds = lappend(fpinfo->remote_conds, ri);
 		else
 			fpinfo->local_conds = lappend(fpinfo->local_conds, ri);
@@ -499,8 +475,6 @@ mongoGetForeignRelSize(PlannerInfo *root,
 	/* Also store the options in fpinfo for further use */
 	fpinfo->options = options;
 
-#ifdef META_DRIVER
-
 	/*
 	 * Store aggregation enable/disable option in the fpinfo directly for
 	 * further use.  This flag can be useful when options are not accessible
@@ -510,7 +484,6 @@ mongoGetForeignRelSize(PlannerInfo *root,
 
 	/* Set the flag is_order_by_pushable of the base relation */
 	fpinfo->is_order_by_pushable = options->enable_order_by_pushdown;
-#endif
 }
 
 /*
@@ -618,10 +591,8 @@ mongoGetForeignPaths(PlannerInfo *root,
 	/* Add foreign path as the only possible path */
 	add_path(baserel, foreignPath);
 
-#ifdef META_DRIVER
 	/* Add paths with pathkeys */
 	mongo_add_paths_with_pathkeys(root, baserel, NULL, startupCost, totalCost);
-#endif
 }
 
 /*
@@ -654,7 +625,6 @@ mongoGetForeignPlan(PlannerInfo *root,
 	List	   *is_inner_column_list = NIL;
 	List	   *quals = NIL;
 	MongoFdwRelType mongofdwreltype;
-#ifdef META_DRIVER
 	MongoRelQualInfo *qual_info;
 	MongoFdwRelationInfo *ofpinfo;
 	List	   *pathKeyList = NIL;
@@ -674,8 +644,6 @@ mongoGetForeignPlan(PlannerInfo *root,
 		has_limit = intVal(list_nth(best_path->fdw_private,
 									FdwPathPrivateHasLimit));
 	}
-
-#endif
 
 	/* Set scan relation id */
 	if (IS_SIMPLE_REL(foreignrel))
@@ -868,8 +836,6 @@ mongoGetForeignPlan(PlannerInfo *root,
 	else
 		mongofdwreltype = BASE_REL;
 
-#ifdef META_DRIVER
-
 	/*
 	 * We use MongoRelQualInfo to pass various information related to joining
 	 * quals and grouping target to fdw_private which is used to form
@@ -987,15 +953,11 @@ mongoGetForeignPlan(PlannerInfo *root,
 		 */
 		mongo_prepare_qual_info(quals, qual_info);
 	}
-#else
-	quals = remote_exprs;
-#endif
 
 	/*
 	 * Check the ORDER BY clause, and if we found any useful pathkeys, then
 	 * store the required information.
 	 */
-#ifdef META_DRIVER
 	foreach(lc, best_path->path.pathkeys)
 	{
 		EquivalenceMember *em;
@@ -1075,7 +1037,6 @@ mongoGetForeignPlan(PlannerInfo *root,
 				offset_value = DatumGetInt64(((Const *) node)->constvalue);
 		}
 	}
-#endif
 
 	/*
 	 * Unlike postgres_fdw, remote query formation is done in the execution
@@ -1094,7 +1055,6 @@ mongoGetForeignPlan(PlannerInfo *root,
 	/* Append relation type */
 	fdw_private = lappend(fdw_private, makeInteger(mongofdwreltype));
 
-#ifdef META_DRIVER
 	fdw_private = lappend(fdw_private, qual_info->colNameList);
 	fdw_private = lappend(fdw_private, qual_info->colNumList);
 	fdw_private = lappend(fdw_private, qual_info->rtiList);
@@ -1133,7 +1093,6 @@ mongoGetForeignPlan(PlannerInfo *root,
 			fdw_private = lappend(fdw_private, makeInteger(tfpinfo->jointype));
 		}
 	}
-#endif
 
 	/* Create the foreign scan node */
 	foreignScan = make_foreignscan(targetList, local_exprs,
@@ -1699,7 +1658,6 @@ mongoExecForeignInsert(EState *estate,
 							   TupleDescAttr(slot->tts_tupleDescriptor, attnum - 1)->atttypid);
 		}
 	}
-	bsonFinish(bsonDoc);
 
 	/* Now we are ready to insert tuple/document into MongoDB */
 	mongoInsert(fmstate->mongoConnection, fmstate->options->svr_database,
@@ -1828,17 +1786,11 @@ mongoExecForeignUpdate(EState *estate,
 				elog(ERROR, "system column '__doc' update is not supported");
 
 			value = slot_getattr(slot, attnum, &isnull);
-#ifdef META_DRIVER
 			append_mongo_value(&set, attr->attname.data, value,
 							   isnull ? true : false, attr->atttypid);
-#else
-			append_mongo_value(document, attr->attname.data, value,
-							   isnull ? true : false, attr->atttypid);
-#endif
 		}
 	}
 	bsonAppendFinishObject(document, &set);
-	bsonFinish(document);
 
 	op = bsonCreate();
 	if (!append_mongo_value(op, columnName, datum, isNull, typoid))
@@ -1846,7 +1798,6 @@ mongoExecForeignUpdate(EState *estate,
 		bsonDestroy(document);
 		return NULL;
 	}
-	bsonFinish(op);
 
 	/* We are ready to update the row into MongoDB */
 	mongoUpdate(fmstate->mongoConnection, fmstate->options->svr_database,
@@ -1902,7 +1853,6 @@ mongoExecForeignDelete(EState *estate,
 		bsonDestroy(document);
 		return NULL;
 	}
-	bsonFinish(document);
 
 	/* Now we are ready to delete a single document from MongoDB */
 	mongoDelete(fmstate->mongoConnection, fmstate->options->svr_database,
@@ -2315,10 +2265,8 @@ column_types_compatible(BSON_TYPE bsonType, Oid columnTypeId)
 			if (bsonType == BSON_TYPE_INT32 || bsonType == BSON_TYPE_INT64 ||
 				bsonType == BSON_TYPE_DOUBLE)
 				compatibleTypes = true;
-#ifdef META_DRIVER
 			if (bsonType == BSON_TYPE_BOOL)
 				compatibleTypes = true;
-#endif
 			break;
 		case BOOLOID:
 			if (bsonType == BSON_TYPE_INT32 || bsonType == BSON_TYPE_INT64 ||
@@ -2334,10 +2282,8 @@ column_types_compatible(BSON_TYPE bsonType, Oid columnTypeId)
 		case BYTEAOID:
 			if (bsonType == BSON_TYPE_BINDATA)
 				compatibleTypes = true;
-#ifdef META_DRIVER
 			if (bsonType == BSON_TYPE_OID)
 				compatibleTypes = true;
-#endif
 			break;
 		case NAMEOID:
 
@@ -2573,7 +2519,7 @@ column_value(BSON_ITERATOR *bsonIterator, Oid columnTypeId,
 				int			value_len;
 				char	   *value;
 				bytea	   *result;
-#ifdef META_DRIVER
+
 				switch (bsonIterType(bsonIterator))
 				{
 					case BSON_TYPE_OID:
@@ -2585,10 +2531,6 @@ column_value(BSON_ITERATOR *bsonIterator, Oid columnTypeId,
 														 (uint32_t *) &value_len);
 						break;
 				}
-#else
-				value_len = bsonIterBinLen(bsonIterator);
-				value = (char *) bsonIterBinData(bsonIterator);
-#endif
 				result = (bytea *) palloc(value_len + VARHDRSZ);
 				memcpy(VARDATA(result), value, value_len);
 				SET_VARSIZE(result, value_len + VARHDRSZ);
@@ -2627,15 +2569,9 @@ column_value(BSON_ITERATOR *bsonIterator, Oid columnTypeId,
 					ereport(ERROR,
 							(errmsg("cannot convert to json")));
 
-#ifdef META_DRIVER
 				/* Convert BSON to JSON value */
 				bsonToJsonStringValue(buffer, bsonIterator,
 									  BSON_TYPE_ARRAY == type);
-#else
-				/* Convert BSON to JSON value */
-				bson_to_json_string(buffer, *bsonIterator,
-									BSON_TYPE_ARRAY == type);
-#endif
 				result = cstring_to_text_with_len(buffer->data, buffer->len);
 				lex = makeJsonLexContext(result, false);
 				pg_parse_json(lex, &nullSemAction);
@@ -2652,189 +2588,6 @@ column_value(BSON_ITERATOR *bsonIterator, Oid columnTypeId,
 
 	return columnValue;
 }
-
-#ifndef META_DRIVER
-static void
-bson_to_json_string(StringInfo output, BSON_ITERATOR i, bool isArray)
-{
-	const char *key;
-	bool		isFirstElement;
-	char		beginSymbol = '{';
-	char		endSymbol = '}';
-	BSON_TYPE	bsonType;
-
-	if (isArray)
-	{
-		beginSymbol = '[';
-		endSymbol = ']';
-	}
-
-	appendStringInfoChar(output, beginSymbol);
-
-	isFirstElement = true;
-	while (bsonIterNext(&i))
-	{
-		if (!isFirstElement)
-			appendStringInfoChar(output, ',');
-
-		bsonType = bsonIterType(&i);
-		if (bsonType == 0)
-			break;
-
-		key = bsonIterKey(&i);
-
-		if (!isArray)
-			appendStringInfo(output, "\"%s\":", key);
-
-		switch (bsonType)
-		{
-			case BSON_TYPE_DOUBLE:
-				appendStringInfo(output, "%f", bsonIterDouble(&i));
-				break;
-			case BSON_TYPE_UTF8:
-				appendStringInfo(output, "\"%s\"",
-								 escape_json_string(bsonIterString(&i)));
-				break;
-			case BSON_TYPE_SYMBOL:
-				ereport(ERROR,
-						(errcode(ERRCODE_FDW_INVALID_DATA_TYPE),
-						 errmsg("\"symbol\" BSON type is deprecated and unsupported"),
-						 errhint("Symbol: %s", bsonIterString(&i))));
-				break;
-			case BSON_TYPE_OID:
-				{
-					char		oidhex[25];
-
-					bsonOidToString(bsonIterOid(&i), oidhex);
-					appendStringInfo(output, "{\"$oid\":\"%s\"}", oidhex);
-					break;
-				}
-			case BSON_TYPE_BOOL:
-				appendStringInfoString(output,
-									   bsonIterBool(&i) ? "true" : "false");
-				break;
-			case BSON_TYPE_DATE_TIME:
-				appendStringInfo(output, "{\"$date\":%ld}",
-								 (long int) bsonIterDate(&i));
-				break;
-			case BSON_TYPE_BINDATA:
-				/* It's possible to encode the data with base64 here. */
-				ereport(ERROR,
-						(errcode(ERRCODE_FDW_INVALID_DATA_TYPE),
-						 errmsg("support for \"binary data\" BSON type is not implemented")));
-				break;
-			case BSON_TYPE_UNDEFINED:
-				ereport(ERROR,
-						(errcode(ERRCODE_FDW_INVALID_DATA_TYPE),
-						 errmsg("\"undefined\" BSON type is deprecated and unsupported")));
-				break;
-			case BSON_TYPE_NULL:
-				appendStringInfoString(output, "null");
-				break;
-			case BSON_TYPE_REGEX:
-				ereport(ERROR,
-						(errcode(ERRCODE_FDW_INVALID_DATA_TYPE),
-						 errmsg("support for \"regex\" BSON type is not implemented"),
-						 errhint("Regex: %s", bsonIterRegex(&i))));
-				break;
-			case BSON_TYPE_CODE:
-				ereport(ERROR,
-						(errcode(ERRCODE_FDW_INVALID_DATA_TYPE),
-						 errmsg("support for \"code\" BSON type is not implemented"),
-						 errhint("Code: %s", bsonIterCode(&i))));
-				break;
-			case BSON_TYPE_CODEWSCOPE:
-				ereport(ERROR,
-						(errcode(ERRCODE_FDW_INVALID_DATA_TYPE),
-						 errmsg("support for \"code\" with scope` BSON type is not implemented")));
-				break;
-			case BSON_TYPE_INT32:
-				appendStringInfo(output, "%d", bsonIterInt32(&i));
-				break;
-			case BSON_TYPE_INT64:
-				appendStringInfo(output, "%lu", (uint64_t) bsonIterInt64(&i));
-				break;
-			case BSON_TYPE_TIMESTAMP:
-				ereport(ERROR,
-						(errcode(ERRCODE_FDW_INVALID_DATA_TYPE),
-						 errmsg("internal `timestamp` BSON type is and unsupported")));
-				break;
-			case BSON_TYPE_DOCUMENT:
-				bson_to_json_string(output, i, false);
-				break;
-			case BSON_TYPE_ARRAY:
-				bson_to_json_string(output, i, true);
-				break;
-			default:
-				ereport(ERROR,
-						(errcode(ERRCODE_FDW_INVALID_DATA_TYPE),
-						 errmsg("unsupported BSON type: %x", bsonType)));
-		}
-		isFirstElement = false;
-	}
-	appendStringInfoChar(output, endSymbol);
-}
-
-/*
- * escape_json_string
- *		Escapes a string for safe inclusion in JSON.
- */
-static const char *
-escape_json_string(const char *string)
-{
-	StringInfo	buffer;
-	const char *ptr;
-	int			i;
-	int			segmentStartIdx;
-	int			len;
-	bool		needsEscaping = false;
-
-	for (ptr = string; *ptr; ++ptr)
-	{
-		if (*ptr == '"' || *ptr == '\r' || *ptr == '\n' || *ptr == '\t' ||
-			*ptr == '\\')
-		{
-			needsEscaping = true;
-			break;
-		}
-	}
-
-	if (!needsEscaping)
-		return string;
-
-	buffer = makeStringInfo();
-	len = strlen(string);
-	segmentStartIdx = 0;
-	for (i = 0; i < len; ++i)
-	{
-		if (string[i] == '"' || string[i] == '\r' || string[i] == '\n' ||
-			string[i] == '\t' || string[i] == '\\')
-		{
-			if (segmentStartIdx < i)
-				appendBinaryStringInfo(buffer, string + segmentStartIdx,
-									   i - segmentStartIdx);
-
-			appendStringInfoChar(buffer, '\\');
-			if (string[i] == '"')
-				appendStringInfoChar(buffer, '"');
-			else if (string[i] == '\r')
-				appendStringInfoChar(buffer, 'r');
-			else if (string[i] == '\n')
-				appendStringInfoChar(buffer, 'n');
-			else if (string[i] == '\t')
-				appendStringInfoChar(buffer, 't');
-			else if (string[i] == '\\')
-				appendStringInfoChar(buffer, '\\');
-
-			segmentStartIdx = i + 1;
-		}
-	}
-	if (segmentStartIdx < len)
-		appendBinaryStringInfo(buffer, string + segmentStartIdx,
-							   len - segmentStartIdx);
-	return buffer->data;
-}
-#endif
 
 /*
  * mongo_free_scan_state
@@ -2986,19 +2739,6 @@ mongo_acquire_sample_rows(Relation relation,
 	 */
 	mongoConnection = mongo_get_connection(server, user, options);
 
-	if (!bsonFinish(queryDocument))
-	{
-#ifdef META_DRIVER
-		ereport(ERROR,
-				(errmsg("could not create document for query"),
-				 errhint("BSON flags: %d", queryDocument->flags)));
-#else
-		ereport(ERROR,
-				(errmsg("could not create document for query"),
-				 errhint("BSON error: %d", queryDocument->err)));
-#endif
-	}
-
 	/* Create cursor for collection name and set query */
 	mongoCursor = mongoCursorCreate(mongoConnection, options->svr_database,
 									options->collectionName, queryDocument);
@@ -3044,22 +2784,12 @@ mongo_acquire_sample_rows(Relation relation,
 		}
 		else
 		{
-#ifdef META_DRIVER
 			bson_error_t error;
 
 			if (mongoc_cursor_error(mongoCursor, &error))
 				ereport(ERROR,
 						(errmsg("could not iterate over mongo collection"),
 						 errhint("Mongo driver error: %s", error.message)));
-#else
-			mongo_cursor_error_t errorCode = mongoCursor->err;
-
-			if (errorCode != MONGO_CURSOR_EXHAUSTED)
-				ereport(ERROR,
-						(errmsg("could not iterate over mongo collection"),
-						 errhint("Mongo driver cursor error code: %d",
-								 errorCode)));
-#endif
 			break;
 		}
 
@@ -3165,7 +2895,6 @@ mongoEndForeignInsert(EState *estate, ResultRelInfo *resultRelInfo)
 			 errmsg("COPY and foreign partition routing not supported in mongo_fdw")));
 }
 
-#ifdef META_DRIVER
 /*
  * mongoGetForeignJoinPaths
  *		Add possible ForeignPath to joinrel, if the join is safe to push down.
@@ -3911,7 +3640,6 @@ mongo_add_foreign_grouping_paths(PlannerInfo *root, RelOptInfo *input_rel,
 	/* Add generated path into grouped_rel by add_path(). */
 	add_path(grouped_rel, (Path *) grouppath);
 }
-#endif							/* End of META_DRIVER */
 
 /*
  * mongoEstimateCosts
@@ -3936,7 +3664,6 @@ mongoEstimateCosts(RelOptInfo *baserel, Cost *startup_cost, Cost *total_cost,
 	*total_cost = baserel->rows + *startup_cost;
 }
 
-#ifdef META_DRIVER
 /*
  * mongo_get_useful_ecs_for_relation
  *		Determine which EquivalenceClasses might be involved in useful
@@ -4427,7 +4154,7 @@ mongo_add_foreign_ordered_paths(PlannerInfo *root, RelOptInfo *input_rel,
 	fpinfo->pushdown_safe = true;
 
 	/* TODO: Put accurate estimates */
-	startup_cost = 15;
+	startup_cost = 10;
 	total_cost = 10 + startup_cost;
 	rows = 10;
 
@@ -4793,4 +4520,3 @@ mongo_is_default_sort_operator(EquivalenceMember *em, PathKey *pathkey)
 
 	return false;
 }
-#endif							/* End of META_DRIVER */

@@ -1,6 +1,6 @@
 /* mongo_fdw/mongo_fdw--1.0.sql */
 
--- Portions Copyright (c) 2004-2023, EnterpriseDB Corporation.
+-- Portions Copyright (c) 2004-2024, EnterpriseDB Corporation.
 -- Portions Copyright © 2012–2014 Citus Data, Inc.
 
 -- complain if script is sourced in psql, rather than via CREATE EXTENSION

@@ -4,7 +4,7 @@
  * 		FDW query handling for mongo_fdw
  *
  * Portions Copyright (c) 2012-2014, PostgreSQL Global Development Group
- * Portions Copyright (c) 2004-2023, EnterpriseDB Corporation.
+ * Portions Copyright (c) 2004-2024, EnterpriseDB Corporation.
  * Portions Copyright (c) 2012–2014 Citus Data, Inc.
  *
  * IDENTIFICATION
@@ -31,11 +31,7 @@
 #if PG_VERSION_NUM >= 130000
 #include "common/hashfn.h"
 #endif
-#ifdef META_DRIVER
 #include "mongoc.h"
-#else
-#include "mongo.h"
-#endif
 #include "mongo_query.h"
 #if PG_VERSION_NUM < 120000
 #include "nodes/relation.h"
@@ -55,10 +51,6 @@ typedef struct foreign_glob_cxt
 {
 	PlannerInfo *root;			/* global planner state */
 	RelOptInfo *foreignrel;		/* the foreign relation we are planning for */
-#ifndef META_DRIVER
-	unsigned short varcount;	/* Var count */
-	unsigned short opexprcount;
-#endif
 	Relids		relids;			/* relids of base relations in the underlying
 								 * scan */
 	bool		is_having_cond; /* "true" for HAVING clause condition */
@@ -82,59 +74,20 @@ typedef struct foreign_loc_cxt
 } foreign_loc_cxt;
 
 /* Local functions forward declarations */
-#ifndef META_DRIVER
-static Expr *find_argument_of_type(List *argumentList, NodeTag argumentType);
-static List *equality_operator_list(List *operatorList);
-static List *unique_column_list(List *operatorList);
-static List *column_operator_list(Var *column, List *operatorList);
-#endif
 static bool foreign_expr_walker(Node *node,
 								foreign_glob_cxt *glob_cxt,
 								foreign_loc_cxt *outer_cxt);
 static List *prepare_var_list_for_baserel(Oid relid, Index varno,
 										  Bitmapset *attrs_used);
-#ifdef META_DRIVER
 static HTAB *column_info_hash(List *colname_list, List *colnum_list,
 							  List *rti_list, List *isouter_list);
 static void mongo_prepare_pipeline(List *clause, BSON *inner_pipeline,
 								   pipeline_cxt *context);
 static void mongo_append_clauses_to_pipeline(List *clause, BSON *child_doc,
 											 pipeline_cxt *context);
-#endif
 
 #if PG_VERSION_NUM >= 160000
 static List *mongo_append_unique_var(List *varlist, Var *var);
-#endif
-
-#ifndef META_DRIVER
-/*
- * find_argument_of_type
- *		Walks over the given argument list, looks for an argument with the
- *		given type, and returns the argument if it is found.
- */
-static Expr *
-find_argument_of_type(List *argumentList, NodeTag argumentType)
-{
-	Expr	   *foundArgument = NULL;
-	ListCell   *argumentCell;
-
-	foreach(argumentCell, argumentList)
-	{
-		Expr	   *argument = (Expr *) lfirst(argumentCell);
-
-		/* For RelabelType type, examine the inner node */
-		if (IsA(argument, RelabelType))
-			argument = ((RelabelType *) argument)->arg;
-
-		if (nodeTag(argument) == argumentType)
-		{
-			foundArgument = argument;
-			break;
-		}
-	}
-
-	return foundArgument;
-}
 #endif
 
 /*
@@ -251,7 +204,6 @@ mongo_query_document(ForeignScanState *scanStateNode)
 	List	   *PrivateList = fsplan->fdw_private;
 	List	   *opExpressionList = list_nth(PrivateList,
 											mongoFdwPrivateRemoteExprList);
-#ifdef META_DRIVER
 	MongoFdwModifyState *fmstate = (MongoFdwModifyState *) scanStateNode->fdw_state;
 	BSON		root_pipeline;
 	BSON		match_stage;
@@ -308,7 +260,6 @@ mongo_query_document(ForeignScanState *scanStateNode)
 
 	/* Prepare array of stages */
 	bsonAppendStartArray(queryDocument, "pipeline", &root_pipeline);
-#endif
 
 	/*
 	 * Add filter into query pipeline if available.  These are remote_exprs
@@ -317,7 +268,6 @@ mongo_query_document(ForeignScanState *scanStateNode)
 	 */
 	if (opExpressionList)
 	{
-#ifdef META_DRIVER
 		pipeline_cxt context;
 
 		context.colInfoHash = columnInfoHash;
@@ -331,129 +281,8 @@ mongo_query_document(ForeignScanState *scanStateNode)
 		mongo_prepare_pipeline(opExpressionList, &match_stage, &context);
 
 		bsonAppendFinishArray(filter, &match_stage);
-#else
-		Oid			relationId;
-		List	   *equalityOperatorList;
-		List	   *comparisonOperatorList;
-		List	   *columnList;
-		ListCell   *equalityOperatorCell;
-		ListCell   *columnCell;
-
-		if (fsplan->scan.scanrelid > 0)
-			relationId = RelationGetRelid(scanStateNode->ss.ss_currentRelation);
-		else
-			relationId = 0;
-
-		/*
-		 * We distinguish between equality expressions and others since we
-		 * need to insert the latter (<, >, <=, >=, <>) as separate
-		 * sub-documents into the BSON query object.
-		 */
-		equalityOperatorList = equality_operator_list(opExpressionList);
-		comparisonOperatorList = list_difference(opExpressionList,
-												 equalityOperatorList);
-
-		/* Append equality expressions to the query */
-		foreach(equalityOperatorCell, equalityOperatorList)
-		{
-			OpExpr	   *equalityOperator;
-			Oid			columnId = InvalidOid;
-			char	   *columnName;
-			Const	   *constant;
-			Param	   *paramNode;
-			List	   *argumentList;
-			Var		   *column;
-
-			equalityOperator = (OpExpr *) lfirst(equalityOperatorCell);
-			argumentList = equalityOperator->args;
-			column = (Var *) find_argument_of_type(argumentList, T_Var);
-			constant = (Const *) find_argument_of_type(argumentList, T_Const);
-			paramNode = (Param *) find_argument_of_type(argumentList, T_Param);
-
-			columnId = column->varattno;
-			columnName = get_attname(relationId, columnId, false);
-
-			if (constant != NULL)
-				append_constant_value(filter, columnName, constant);
-			else
-				append_param_value(filter, columnName, paramNode,
-								   scanStateNode);
-		}
-
-		/*
-		 * For comparison expressions, we need to group them by their columns
-		 * and then append all expressions that correspond to a column as one
-		 * sub-document.  Otherwise, even when we have two expressions to
-		 * define the upper and lower bound of a range, Mongo uses only one of
-		 * these expressions during an index search.
-		 */
-		columnList = unique_column_list(comparisonOperatorList);
-
-		/* Append comparison expressions, grouped by columns, to the query */
-		foreach(columnCell, columnList)
-		{
-			Var		   *column = (Var *) lfirst(columnCell);
-			Oid			columnId = InvalidOid;
-			char	   *columnName;
-			List	   *columnOperatorList;
-			ListCell   *columnOperatorCell;
-			BSON		childDocument;
-
-			if (relationId != 0)
-			{
-				columnId = column->varattno;
-				columnName = get_attname(relationId, columnId, false);
-			}
-
-			/* Find all expressions that correspond to the column */
-			columnOperatorList = column_operator_list(column,
-													  comparisonOperatorList);
-
-			/* For comparison expressions, start a sub-document */
-			bsonAppendStartObject(filter, columnName, &childDocument);
-
-			foreach(columnOperatorCell, columnOperatorList)
-			{
-				OpExpr	   *columnOperator;
-				char	   *operatorName;
-				char	   *mongoOperatorName;
-				List	   *argumentList;
-				Const	   *constant;
-				Param	   *paramNode;
-
-				columnOperator = (OpExpr *) lfirst(columnOperatorCell);
-				argumentList = columnOperator->args;
-				constant = (Const *) find_argument_of_type(argumentList,
-														   T_Const);
-				paramNode = (Param *) find_argument_of_type(argumentList,
-															T_Param);
-				operatorName = get_opname(columnOperator->opno);
-				mongoOperatorName = mongo_operator_name(operatorName);
-
-				if (constant != NULL)
-					append_constant_value(filter, mongoOperatorName, constant);
-				else
-					append_param_value(filter, mongoOperatorName, paramNode,
-									   scanStateNode);
-			}
-			bsonAppendFinishObject(filter, &childDocument);
-		}
-#endif
-	}
-	if (!bsonFinish(filter))
-	{
-#ifdef META_DRIVER
-		ereport(ERROR,
-				(errmsg("could not create document for query"),
-				 errhint("BSON flags: %d", queryDocument->flags)));
-#else
-		ereport(ERROR,
-				(errmsg("could not create document for query"),
-				 errhint("BSON error: %d", queryDocument->err)));
-#endif
 	}
 
-#ifdef META_DRIVER
 	if (fmstate->relType == JOIN_REL || fmstate->relType == UPPER_JOIN_REL)
 	{
 		BSON		inner_pipeline;
@@ -706,11 +535,6 @@ mongo_query_document(ForeignScanState *scanStateNode)
 			mongo_prepare_pipeline(having_expr, &match_stage, &context);
 
 			bsonAppendFinishObject(&root_pipeline, &match_stage);
-
-			if (!bsonFinish(filter))
-				ereport(ERROR,
-						(errmsg("could not create document for query"),
-						 errhint("BSON flags: %d", queryDocument->flags)));
 		}
 	}
 
@@ -812,17 +636,7 @@ mongo_query_document(ForeignScanState *scanStateNode)
 
 	bsonAppendFinishArray(queryDocument, &root_pipeline);
 
-	if (!bsonFinish(queryDocument))
-	{
-		ereport(ERROR,
-				(errmsg("could not create document for query"),
-				 errhint("BSON flags: %d", queryDocument->flags)));
-	}
-
 	return queryDocument;
-#endif
-
-	return filter;
 }
 
 /*
@@ -866,88 +680,6 @@ mongo_operator_name(const char *operatorName)
 
 	return (char *) mongoOperatorName;
 }
-
-#ifndef META_DRIVER
-/*
- * equality_operator_list
- *		Finds the equality (=) operators in the given list, and returns these
- *		operators in a new list.
- */
-static List *
-equality_operator_list(List *operatorList)
-{
-	List	   *equalityOperatorList = NIL;
-	ListCell   *operatorCell;
-
-	foreach(operatorCell, operatorList)
-	{
-		OpExpr	   *operator = (OpExpr *) lfirst(operatorCell);
-
-		if (strncmp(get_opname(operator->opno), EQUALITY_OPERATOR_NAME,
-					NAMEDATALEN) == 0)
-			equalityOperatorList = lappend(equalityOperatorList, operator);
-	}
-
-	return equalityOperatorList;
-}
-
-/*
- * unique_column_list
- *		Walks over the given operator list, and extracts the column argument in
- *		each operator.
- *
- * The function then de-duplicates extracted columns, and returns them in a new
- * list.
- */
-static List *
-unique_column_list(List *operatorList)
-{
-	List	   *uniqueColumnList = NIL;
-	ListCell   *operatorCell;
-
-	foreach(operatorCell, operatorList)
-	{
-		OpExpr	   *operator = (OpExpr *) lfirst(operatorCell);
-		List	   *argumentList = operator->args;
-		Var		   *column = (Var *) find_argument_of_type(argumentList,
-														   T_Var);
-
-#if PG_VERSION_NUM >= 160000
-		uniqueColumnList = mongo_append_unique_var(uniqueColumnList, column);
-#else
-		/* List membership is determined via column's equal() function */
-		uniqueColumnList = list_append_unique(uniqueColumnList, column);
-#endif
-	}
-
-	return uniqueColumnList;
-}
-
-/*
- * column_operator_list
- *		Finds all expressions that correspond to the given column, and returns
- *		them in a new list.
- */
-static List *
-column_operator_list(Var *column, List *operatorList)
-{
-	List	   *columnOperatorList = NIL;
-	ListCell   *operatorCell;
-
-	foreach(operatorCell, operatorList)
-	{
-		OpExpr	   *operator = (OpExpr *) lfirst(operatorCell);
-		List	   *argumentList = operator->args;
-		Var		   *foundColumn = (Var *) find_argument_of_type(argumentList,
-																T_Var);
-
-		if (equal(column, foundColumn))
-			columnOperatorList = lappend(columnOperatorList, operator);
-	}
-
-	return columnOperatorList;
-}
-#endif
 
 void
 append_param_value(BSON *queryDocument, const char *keyName, Param *paramNode,
@@ -1090,7 +822,6 @@ append_mongo_value(BSON *queryDocument, const char *keyName, Datum value,
 					len = VARSIZE_4B(result) - VARHDRSZ;
 					data = VARDATA_4B(result);
 				}
-#ifdef META_DRIVER
 				if (strcmp(keyName, "_id") == 0)
 				{
 					bson_oid_t	oid;
@@ -1101,9 +832,6 @@ append_mongo_value(BSON *queryDocument, const char *keyName, Datum value,
 				else
 					status = bsonAppendBinary(queryDocument, keyName, data,
 											  len);
-#else
-				status = bsonAppendBinary(queryDocument, keyName, data, len);
-#endif
 			}
 			break;
 		case NAMEOID:
@@ -1175,13 +903,8 @@ append_mongo_value(BSON *queryDocument, const char *keyName, Datum value,
 					valueDatum = DirectFunctionCall1(numeric_float8,
 													 elem_values[i]);
 					valueFloat = DatumGetFloat8(valueDatum);
-#ifdef META_DRIVER
 					status = bsonAppendDouble(&childDocument, keyName,
 											  valueFloat);
-#else
-					status = bsonAppendDouble(queryDocument, keyName,
-											  valueFloat);
-#endif
 				}
 				bsonAppendFinishArray(queryDocument, &childDocument);
 				pfree(elem_values);
@@ -1222,13 +945,8 @@ append_mongo_value(BSON *queryDocument, const char *keyName, Datum value,
 									  &typeVarLength);
 					valueString = OidOutputFunctionCall(outputFunctionId,
 														elem_values[i]);
-#ifdef META_DRIVER
 					status = bsonAppendUTF8(&childDocument, keyName,
 											valueString);
-#else
-					status = bsonAppendUTF8(queryDocument, keyName,
-											valueString);
-#endif
 				}
 				bsonAppendFinishArray(queryDocument, &childDocument);
 				pfree(elem_values);
@@ -1428,11 +1146,6 @@ foreign_expr_walker(Node *node, foreign_glob_cxt *glob_cxt,
 			{
 				Var		   *var = (Var *) node;
 
-#ifndef META_DRIVER
-				/* Increment the Var count */
-				glob_cxt->varcount++;
-#endif
-
 				/*
 				 * If the Var is from the foreign table, we consider its
 				 * collation (if any) safe to use.  If it is from another
@@ -1516,11 +1229,6 @@ foreign_expr_walker(Node *node, foreign_glob_cxt *glob_cxt,
 					!glob_cxt->is_having_cond)
 					return false;
 
-#ifndef META_DRIVER
-				/* Increment the operator expression count */
-				glob_cxt->opexprcount++;
-#endif
-
 				/*
 				 * We support =, <, >, <=, >=, <>, +, -, *, /, %, ^, |/, and @
 				 * operators for joinclause of join relation.
@@ -1536,11 +1244,7 @@ foreign_expr_walker(Node *node, foreign_glob_cxt *glob_cxt,
 				 * conditions of simple as well as join relation.
 				 */
 				if (!foreign_expr_walker((Node *) oe->args, glob_cxt,
-										 &inner_cxt)
-#ifndef META_DRIVER
-					|| (glob_cxt->opexprcount > 1)
-#endif
-					)
+										 &inner_cxt))
 					return false;
 
 				/*
@@ -1609,11 +1313,7 @@ foreign_expr_walker(Node *node, foreign_glob_cxt *glob_cxt,
 				foreach(lc, l)
 				{
 					if ((!foreign_expr_walker((Node *) lfirst(lc),
-											  glob_cxt, &inner_cxt))
-#ifndef META_DRIVER
-						|| (glob_cxt->varcount > 1)
-#endif
-						)
+											  glob_cxt, &inner_cxt)))
 						return false;
 				}
 
@@ -1641,7 +1341,6 @@ foreign_expr_walker(Node *node, foreign_glob_cxt *glob_cxt,
 				state = FDW_COLLATE_NONE;
 			}
 			break;
-#ifdef META_DRIVER
 		case T_Aggref:
 			{
 				Aggref	   *agg = (Aggref *) node;
@@ -1729,7 +1428,6 @@ foreign_expr_walker(Node *node, foreign_glob_cxt *glob_cxt,
 					state = FDW_COLLATE_UNSAFE;
 			}
 			break;
-#endif
 		default:
 
 			/*
@@ -1818,10 +1516,6 @@ mongo_is_foreign_expr(PlannerInfo *root, RelOptInfo *baserel, Expr *expression,
 	else
 		glob_cxt.relids = baserel->relids;
 
-#ifndef META_DRIVER
-	glob_cxt.varcount = 0;
-	glob_cxt.opexprcount = 0;
-#endif
 	glob_cxt.is_having_cond = is_having_cond;
 	loc_cxt.collation = InvalidOid;
 	loc_cxt.state = FDW_COLLATE_NONE;
@@ -1903,7 +1597,6 @@ prepare_var_list_for_baserel(Oid relid, Index varno, Bitmapset *attrs_used)
 	return tlist;
 }
 
-#ifdef META_DRIVER
 /*
  * column_info_hash
  *		Creates a hash table that maps varno and varattno to the column names,
@@ -2104,7 +1797,6 @@ mongo_is_foreign_param(PlannerInfo *root, RelOptInfo *baserel, Expr *expr)
 	}
 	return false;
 }
-#endif
 
 #if PG_VERSION_NUM >= 160000
 /*

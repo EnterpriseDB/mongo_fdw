@@ -4,7 +4,7 @@
  * 		Connection management functions for mongo_fdw
  *
  * Portions Copyright (c) 2012-2014, PostgreSQL Global Development Group
- * Portions Copyright (c) 2004-2023, EnterpriseDB Corporation.
+ * Portions Copyright (c) 2004-2024, EnterpriseDB Corporation.
  * Portions Copyright (c) 2012–2014 Citus Data, Inc.
  *
  * IDENTIFICATION
@@ -136,7 +136,6 @@ mongo_get_connection(ForeignServer *server, UserMapping *user,
 								  ObjectIdGetDatum(user->umid));
 	}
 
-#ifdef META_DRIVER
 	/* Check if the existing or new connection is reachable/active or not? */
 	if (entry->conn != NULL)
 	{
@@ -154,7 +153,6 @@ mongo_get_connection(ForeignServer *server, UserMapping *user,
 							server->servername),
 					 errhint("Mongo error: \"%s\"", error.message)));
 	}
-#endif
 	return entry->conn;
 }
 

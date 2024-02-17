@@ -738,22 +738,16 @@ SELECT * FROM f_mongo_test ORDER BY a USING OPERATOR(public.<^);
 (6 rows)
 
 EXPLAIN (COSTS FALSE, VERBOSE)
-SELECT MIN(a) FROM f_mongo_test ORDER BY 1 USING OPERATOR(public.<^);
-                           QUERY PLAN                            
------------------------------------------------------------------
+SELECT MIN(a) FROM f_mongo_test GROUP BY b ORDER BY 1 USING OPERATOR(public.<^);
+                                     QUERY PLAN                                      
+-------------------------------------------------------------------------------------
  Sort
-   Output: ($0)
-   Sort Key: ($0) USING <^
-   InitPlan 1 (returns $0)
-     ->  Limit
-           Output: f_mongo_test.a
-           ->  Foreign Scan on public.f_mongo_test
-                 Output: f_mongo_test.a
-                 Filter: (f_mongo_test.a IS NOT NULL)
-                 Foreign Namespace: mongo_fdw_regress.mongo_test
-   ->  Result
-         Output: $0
-(12 rows)
+   Output: (min(a)), b
+   Sort Key: (min(f_mongo_test.a)) USING <^
+   ->  Foreign Scan
+         Output: (min(a)), b
+         Foreign Namespace: Aggregate on (mongo_fdw_regress.mongo_test f_mongo_test)
+(6 rows)
 
 -- FDW-589: Test enable_order_by_pushdown option at server and table level.
 -- Test the option at server level.
