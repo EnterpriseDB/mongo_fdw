@@ -501,8 +501,6 @@ mongo_append_op_expr(OpExpr *node, BSON *child_doc, pipeline_cxt *context)
 			mongo_append_expr(lfirst(arg), temp_obj, context);
 		}
 
-		bsonFinish(temp_obj);
-
 		/* Add regexMatch operator */
 
 		if (bsonIterInit(&temp_iter, temp_obj) == false)
