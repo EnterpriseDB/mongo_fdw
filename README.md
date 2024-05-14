@@ -22,7 +22,7 @@ Contents
 8. [Character set handling](#character-set-handling)
 9. [Examples](#examples)
 10. [Limitations](#limitations)
-11. [Contributing](#contributing)
+11. [Contributing and testing](#contributing-and-testing)
 12. [Useful links](#useful-links)
 
 Features
@@ -120,6 +120,8 @@ Usage
   Controls whether `mongo_fdw` uses exact rows from
     remote collection to obtain cost estimates.
 
+The following options are _only supported with meta driver_:
+
 - **authentication_database** as *string*, optional
 
   Database against which user will be
@@ -192,7 +194,8 @@ Usage
     performing a sort locally. This option can also be set for an individual
     table, and if any of the tables involved in the query has set it to
     false then the ORDER BY will not be pushed down. The table-level value
-    of the option takes precedence over the server-level option value.
+    of the option takes precedence over the server-level option value.lue of the option takes precedence over the server-level
+	option value.
 
 ## CREATE USER MAPPING options
 
@@ -225,11 +228,11 @@ command:
   Similar to the server-level option, but can be
     configured at table level as well.
 
-- **enable_aggregate_pushdown** as *boolean*, optional, default `true`
+- **enable_aggregate_pushdown** as *boolean*, optional, default corresponding server-level value
 
   Similar to the server-level option, but can be configured at table level as well.
 
-- **enable_order_by_pushdown** as *boolean*, optional, default `true`
+- **enable_order_by_pushdown** as *boolean*, optional, default corresponding server-level value
 
   Similar to the server-level option, but can be configured at table level as well.
 
@@ -256,9 +259,11 @@ functions, `mongo_fdw` provides the following user-callable utility functions:
 Identifier case handling
 ------------------------
 
-PostgreSQL folds identifiers to lower case by default, MongoDB use JSON notation of identifiers.
+PostgreSQL folds identifiers to lower case by default, MongoDB use JSON notation of
+identifiers without any default character case transformations.
 
-All transformation rules and problems **yet not described**.
+Hence if the BSON document key contains uppercase letters or occurs within a nested
+document, PostgreSQLrequires the corresponding column names to be quoted.
 
 Generated columns
 -----------------
@@ -305,7 +310,7 @@ execution plans for a query, just run `EXPLAIN`.
 Once for a database you need, as PostgreSQL superuser.
 
 ```sql
-CREATE EXTENSION mongo_fdw;
+	CREATE EXTENSION mongo_fdw;
 ```
 
 ### Create a foreign server with appropriate configuration:
@@ -313,10 +318,12 @@ CREATE EXTENSION mongo_fdw;
 Once for a foreign data source you need, as PostgreSQL superuser.
 
 ```sql
-CREATE SERVER "MongoDB server" FOREIGN DATA WRAPPER mongo_fdw OPTIONS (
-  address '127.0.0.1',
-  port '27017'
-);
+    	CREATE SERVER "MongoDB server"
+	FOREIGN DATA WRAPPER mongo_fdw
+	OPTIONS (
+          address '127.0.0.1',
+          port '27017'
+	);
 ```
 
 ### Grant usage on foreign server to normal user in PostgreSQL:
@@ -324,7 +331,7 @@ CREATE SERVER "MongoDB server" FOREIGN DATA WRAPPER mongo_fdw OPTIONS (
 Once for a normal user (non-superuser) in PostgreSQL, as PostgreSQL superuser. It is a good idea to use a superuser only where really necessary, so let's allow a normal user to use the foreign server (this is not required for the example to work, but it's security recommendation).
 
 ```sql
-GRANT USAGE ON FOREIGN SERVER "MongoDB server" TO pguser;
+	GRANT USAGE ON FOREIGN SERVER "MongoDB server" TO pguser;
 ```
 Where `pguser` is a sample user for works with foreign server (and foreign tables).
 
@@ -332,10 +339,13 @@ Where `pguser` is a sample user for works with foreign server (and foreign table
 
 Create an appropriate user mapping:
 ```sql
-CREATE USER MAPPING FOR pguser SERVER "MongoDB server" OPTIONS (
-  username 'mongo_user',
-  password 'mongo_pass'
-);
+    	CREATE USER MAPPING
+	FOR pguser
+	SERVER "MongoDB server"
+    	OPTIONS (
+	  username 'mongo_user',
+	  password 'mongo_pass'
+	);
 ```
 Where `pguser` is a sample user for works with foreign server (and foreign tables).
 
@@ -345,23 +355,27 @@ All `CREATE FOREIGN TABLE` SQL commands can be executed as a normal PostgreSQL u
 Create a foreign table referencing the MongoDB collection:
 
 ```sql
--- Note: first column of the table must be "_id" of type "name".
-CREATE FOREIGN TABLE warehouse (
-  _id name,
-  warehouse_id int,
-  warehouse_name text,
-  warehouse_created timestamptz
-) SERVER "MongoDB server" OPTIONS (
-    database 'db',
-	collection 'warehouse'
-);
+	-- Note: first column of the table must be "_id" of type "name".
+	CREATE FOREIGN TABLE warehouse (
+	  _id name,
+	  warehouse_id int,
+	  warehouse_name text,
+	  warehouse_created timestamptz
+	)
+	SERVER "MongoDB server"
+	OPTIONS (
+	  database 'db',
+	  collection 'warehouse'
+	);
 ```
 
 ### Typical examples with [MongoDB][1]'s equivalent statements.
 
 #### `SELECT`
 ```sql
-SELECT * FROM warehouse WHERE warehouse_id = 1;
+	SELECT *
+	  FROM warehouse
+	 WHERE warehouse_id = 1;
 ```
 ```
            _id            | warehouse_id | warehouse_name |     warehouse_created
@@ -401,7 +415,9 @@ db.warehouse.insert
 ```
 #### `DELETE`
 ```sql
-DELETE FROM warehouse WHERE warehouse_id = 2;
+DELETE
+  FROM warehouse
+ WHERE warehouse_id = 2;
 ```
 ```
 db.warehouse.remove
@@ -413,7 +429,9 @@ db.warehouse.remove
 ```
 #### `UPDATE`
 ```sql
-UPDATE warehouse SET warehouse_name = 'UPS_NEW' WHERE warehouse_id = 1;
+UPDATE warehouse
+   SET warehouse_name = 'UPS_NEW'
+ WHERE warehouse_id = 1;
 ```
 ```
 db.warehouse.update
@@ -447,20 +465,29 @@ ANALYZE warehouse;
 Limitations
 -----------
 
-  - If the BSON document key contains uppercase letters or occurs within
-    a nested document, ``mongo_fdw`` requires the corresponding column names
-    to be declared in double quotes.
-
   - Note that PostgreSQL limits column names to 63 characters by
     default. If you need column names that are longer, you can increase the
     `NAMEDATALEN` constant in `src/include/pg_config_manual.h`, compile,
     and re-install.
 
-Contributing
-------------
+Contributing and testing
+------------------------
 
 Have a fix for a bug or an idea for a great new feature? Great! Check
 out the contribution guidelines [here][3].
+
+### Running regression test.
+Run `mongodb_init.sh` file to load required collections.
+```sh
+source mongodb_init.sh
+```
+Finally, run regression.
+```sh
+make USE_PGXS=1 installcheck
+```
+However, make sure to set the `MONGO_HOST`, `MONGO_PORT`, `MONGO_USER_NAME`,
+and `MONGO_PWD` environment variables correctly. The default settings can
+be found in the `mongodb_init.sh` script.
 
 Useful links
 ------------
