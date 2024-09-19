@@ -5,9 +5,7 @@ This PostgreSQL extension implements a Foreign Data Wrapper (FDW) for
 [MongoDB][1].
 
 Please note that this version of mongo_fdw works with PostgreSQL and EDB
-Postgres Advanced Server 11, 12, 13, 14, 15 and 16.
-
-<img src="https://upload.wikimedia.org/wikipedia/commons/2/29/Postgresql_elephant.svg" align="center" height="100" alt="PostgreSQL"/>	+	<img src="https://www.tutorialsteacher.com/Content/images/home/mongodb.svg" align="center" height="100" alt="MongoDB"/>
+Postgres Advanced Server 12, 13, 14, 15, 16 and 17.
 
 Contents
 --------
@@ -17,13 +15,14 @@ Contents
 3. [Installation](#installation)
 4. [Usage](#usage)
 5. [Functions](#functions)
-6. [Identifier case handling](#identifier-case-handling)
-7. [Generated columns](#generated-columns)
-8. [Character set handling](#character-set-handling)
-9. [Examples](#examples)
-10. [Limitations](#limitations)
-11. [Contributing](#contributing)
-12. [Useful links](#useful-links)
+6. [Character set handling](#character-set-handling)
+7. [Examples](#examples)
+8. [Limitations](#limitations)
+9. [Contributing](#contributing)
+10. [Support](#support)
+11. [Useful links](#useful-links)
+12. [License](#license)
+
 
 Features
 --------
@@ -251,41 +250,15 @@ Functions
 As well as the standard `mongo_fdw_handler()` and `mongo_fdw_validator()`
 functions, `mongo_fdw` provides the following user-callable utility functions:
 
-**Yet not described!**.
+- **mongo_fdw_version()**
 
-Identifier case handling
-------------------------
-
-PostgreSQL folds identifiers to lower case by default, MongoDB use JSON notation of identifiers.
-
-All transformation rules and problems **yet not described**.
-
-Generated columns
------------------
-
-`mongo_fdw` doesn't provides support for PostgreSQL's generated
-columns (PostgreSQL 12+).
-
-**Behaviour with generated columns yet not tested and not described**.
-
-Note that while `mongo_fdw` will `INSERT` or `UPDATE` the generated column value
-in MongoDB, there is nothing to stop the value being modified within MongoDB,
-and hence no guarantee that in subsequent `SELECT` operations the column will
-still contain the expected generated value. This limitation also applies to
-`postgres_fdw`.
-
-For more details on generated columns see:
-
-- [Generated Columns](https://www.postgresql.org/docs/current/ddl-generated-columns.html)
-- [CREATE FOREIGN TABLE](https://www.postgresql.org/docs/current/sql-createforeigntable.html)
+  Returns the version number as an integer.
 
 Character set handling
 ----------------------
 
 `BSON` in MongoDB can only be encoded in `UTF-8`. Also `UTF-8` is recommended and
 de-facto most popular PostgreSQL server encoding.
-
-Encodings mapping between PostgreSQL and MongoDB **yet not described**.
 
 Examples
 --------
@@ -462,8 +435,22 @@ Contributing
 Have a fix for a bug or an idea for a great new feature? Great! Check
 out the contribution guidelines [here][3].
 
+Support
+-------
+This project will be modified to maintain compatibility with new
+PostgreSQL and EDB Postgres Advanced Server releases.
+
+If you need commercial support, please contact the EnterpriseDB sales
+team, or check whether your existing PostgreSQL support provider can
+also support `mongo_fdw`.
+
+
 Useful links
 ------------
+
+### Documentation
+
+ - For details, please refer to [mongo_fdw documentation][5].
 
 ### Source code
 
@@ -484,15 +471,6 @@ Reference FDW realization, `postgres_fdw`
  - https://wiki.postgresql.org/wiki/Fdw
  - https://pgxn.org/tag/fdw/
 
-Support
--------
-This project will be modified to maintain compatibility with new
-PostgreSQL and EDB Postgres Advanced Server releases.
-
-If you need commercial support, please contact the EnterpriseDB sales
-team, or check whether your existing PostgreSQL support provider can
-also support `mongo_fdw`.
-
 
 License
 -------
@@ -510,3 +488,4 @@ See the [`LICENSE`][4] file for full details.
 [2]: https://github.com/enterprisedb/mongo_fdw/issues/new
 [3]: CONTRIBUTING.md
 [4]: LICENSE
+[5]: https://www.enterprisedb.com/docs/mongo_data_adapter/latest/

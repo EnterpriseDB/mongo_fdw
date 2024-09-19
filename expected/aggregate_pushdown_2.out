@@ -49,15 +49,12 @@ SELECT count(*), sum(c1), avg(c1), min(c4), max(c1), sum(c1) * (random() <= 1)::
 -- GROUP BY clause HAVING expressions
 EXPLAIN (VERBOSE, COSTS OFF)
 SELECT c1, sum(c1), count(*) FROM fdw137_t1 GROUP BY c1 HAVING min(c1) > 500 ORDER BY c1 ASC NULLS FIRST;
-                                   QUERY PLAN                                    
----------------------------------------------------------------------------------
- Sort
+                                QUERY PLAN                                 
+---------------------------------------------------------------------------
+ Foreign Scan
    Output: c1, (sum(c1)), (count(*))
-   Sort Key: fdw137_t1.c1 NULLS FIRST
-   ->  Foreign Scan
-         Output: c1, (sum(c1)), (count(*))
-         Foreign Namespace: Aggregate on (mongo_fdw_regress.test_tbl1 fdw137_t1)
-(6 rows)
+   Foreign Namespace: Aggregate on (mongo_fdw_regress.test_tbl1 fdw137_t1)
+(3 rows)
 
 SELECT c1, sum(c1), count(*) FROM fdw137_t1 GROUP BY c1 HAVING min(c1) > 500 ORDER BY c1 ASC NULLS FIRST;
   c1  | sum  | count 
@@ -77,15 +74,12 @@ SELECT c1, sum(c1), count(*) FROM fdw137_t1 GROUP BY c1 HAVING min(c1) > 500 ORD
 
 EXPLAIN (VERBOSE, COSTS OFF)
 SELECT c8, min(c2) FROM fdw137_t1 WHERE c3 = 'ADMIN' GROUP BY c8 HAVING min(c8) = 20 ORDER BY c8 ASC NULLS FIRST;
-                                   QUERY PLAN                                    
----------------------------------------------------------------------------------
- Sort
+                                QUERY PLAN                                 
+---------------------------------------------------------------------------
+ Foreign Scan
    Output: c8, (min(c2))
-   Sort Key: fdw137_t1.c8 NULLS FIRST
-   ->  Foreign Scan
-         Output: c8, (min(c2))
-         Foreign Namespace: Aggregate on (mongo_fdw_regress.test_tbl1 fdw137_t1)
-(6 rows)
+   Foreign Namespace: Aggregate on (mongo_fdw_regress.test_tbl1 fdw137_t1)
+(3 rows)
 
 SELECT c8, min(c2) FROM fdw137_t1 WHERE c3 = 'ADMIN' GROUP BY c8 HAVING min(c8) = 20 ORDER BY c8 ASC NULLS FIRST;
  c8 | min  
@@ -96,15 +90,12 @@ SELECT c8, min(c2) FROM fdw137_t1 WHERE c3 = 'ADMIN' GROUP BY c8 HAVING min(c8) 
 -- Multi-column GROUP BY clause. Push-down.
 EXPLAIN (VERBOSE, COSTS OFF)
 SELECT c2, sum(c1) FROM fdw137_t1 GROUP BY c1, c2 HAVING min(c1) > 500 ORDER BY 1 ASC NULLS FIRST;
-                                   QUERY PLAN                                    
----------------------------------------------------------------------------------
- Sort
+                                QUERY PLAN                                 
+---------------------------------------------------------------------------
+ Foreign Scan
    Output: c2, (sum(c1)), c1
-   Sort Key: fdw137_t1.c2 NULLS FIRST
-   ->  Foreign Scan
-         Output: c2, (sum(c1)), c1
-         Foreign Namespace: Aggregate on (mongo_fdw_regress.test_tbl1 fdw137_t1)
-(6 rows)
+   Foreign Namespace: Aggregate on (mongo_fdw_regress.test_tbl1 fdw137_t1)
+(3 rows)
 
 SELECT c2, sum(c1) FROM fdw137_t1 GROUP BY c1, c2 HAVING min(c1) > 500 ORDER BY 1 ASC NULLS FIRST;
   c2   | sum  
@@ -336,43 +327,35 @@ SELECT sum(t1.c8), avg(t2.c1) FROM fdw137_t1 t1 INNER JOIN fdw137_t2 t2 ON (t1.c
 
 EXPLAIN (VERBOSE, COSTS OFF)
 SELECT t1.c1, count(*), t2.c4 FROM fdw137_t2 t1 INNER JOIN fdw137_t1 t2 ON (t1.c1 = t2.c8) GROUP BY t1.c1, t2.c4 ORDER BY 1 ASC NULLS FIRST, 3 ASC NULLS FIRST;
-                                               QUERY PLAN                                                
----------------------------------------------------------------------------------------------------------
- GroupAggregate
-   Output: t1.c1, count(*), t2.c4
-   Group Key: t1.c1, t2.c4
-   ->  Foreign Scan
-         Output: t1.c1, t2.c4
-         Foreign Namespace: (mongo_fdw_regress.test_tbl2 t1) INNER JOIN (mongo_fdw_regress.test_tbl1 t2)
-(6 rows)
+                                                    QUERY PLAN                                                    
+------------------------------------------------------------------------------------------------------------------
+ Foreign Scan
+   Output: t1.c1, (count(*)), t2.c4
+   Foreign Namespace: Aggregate on ((mongo_fdw_regress.test_tbl2 t1) INNER JOIN (mongo_fdw_regress.test_tbl1 t2))
+(3 rows)
 
 SELECT t1.c1, count(*), t2.c4 FROM fdw137_t2 t1 INNER JOIN fdw137_t1 t2 ON (t1.c1 = t2.c8) GROUP BY t1.c1, t2.c4 ORDER BY 1 ASC NULLS FIRST, 3 ASC NULLS FIRST;
  c1 | count |  c4  
 ----+-------+------
- 10 |     1 |  900
  10 |     1 |     
  10 |     1 |  700
- 20 |     1 | 1300
- 20 |     1 |  900
- 20 |     1 |  400
+ 10 |     1 |  900
+ 20 |     2 |  400
  20 |     1 |  800
- 20 |     1 |  400
- 30 |     3 |  600
+ 20 |     1 |  900
+ 20 |     1 | 1300
+ 30 |     5 |  600
  30 |     1 |  900
- 30 |     2 |  600
-(11 rows)
+(9 rows)
 
 EXPLAIN (VERBOSE, COSTS OFF)
 SELECT sum(t2.c1), t1.c8, avg(t1.c8) FROM fdw137_t1 t1 LEFT JOIN fdw137_t2 t2 ON (t1.c8 = t2.c1) WHERE t1.c8 > 10 GROUP BY t1.c8 HAVING avg(t1.c8)*1 > 10 ORDER BY 2 ASC NULLS FIRST;
-                                                      QUERY PLAN                                                       
------------------------------------------------------------------------------------------------------------------------
- Sort
+                                                   QUERY PLAN                                                    
+-----------------------------------------------------------------------------------------------------------------
+ Foreign Scan
    Output: (sum(t2.c1)), t1.c8, (avg(t1.c8))
-   Sort Key: t1.c8 NULLS FIRST
-   ->  Foreign Scan
-         Output: (sum(t2.c1)), t1.c8, (avg(t1.c8))
-         Foreign Namespace: Aggregate on ((mongo_fdw_regress.test_tbl1 t1) LEFT JOIN (mongo_fdw_regress.test_tbl2 t2))
-(6 rows)
+   Foreign Namespace: Aggregate on ((mongo_fdw_regress.test_tbl1 t1) LEFT JOIN (mongo_fdw_regress.test_tbl2 t2))
+(3 rows)
 
 SELECT sum(t2.c1), t1.c8, avg(t1.c8) FROM fdw137_t1 t1 LEFT JOIN fdw137_t2 t2 ON (t1.c8 = t2.c1) WHERE t1.c8 > 10 GROUP BY t1.c8 HAVING avg(t1.c8)*1 > 10 ORDER BY 2 ASC NULLS FIRST;
  sum | c8 | avg 
@@ -508,7 +491,7 @@ SELECT sum(c1 ORDER BY c1) FROM fdw137_t1 WHERE c1 < 500 GROUP BY c2 ORDER BY 1;
          Group Key: fdw137_t1.c2
          ->  Sort
                Output: c2, c1
-               Sort Key: fdw137_t1.c2
+               Sort Key: fdw137_t1.c2, fdw137_t1.c1
                ->  Foreign Scan on public.fdw137_t1
                      Output: c2, c1
                      Foreign Namespace: mongo_fdw_regress.test_tbl1
@@ -527,14 +510,17 @@ SELECT sum(c1 ORDER BY c1) FROM fdw137_t1 WHERE c1 < 500 GROUP BY c2 ORDER BY 1;
 -- are not pushed.
 EXPLAIN (VERBOSE, COSTS OFF)
 SELECT sum(c8 ORDER BY c1 desc) FROM fdw137_t1 WHERE c1 > 1000 and c8 > 20;
-                       QUERY PLAN                       
---------------------------------------------------------
+                          QUERY PLAN                          
+--------------------------------------------------------------
  Aggregate
    Output: sum(c8 ORDER BY c1 DESC)
-   ->  Foreign Scan on public.fdw137_t1
-         Output: _id, c1, c2, c3, c4, c5, c6, c7, c8
-         Foreign Namespace: mongo_fdw_regress.test_tbl1
-(5 rows)
+   ->  Sort
+         Output: c8, c1
+         Sort Key: fdw137_t1.c1 DESC
+         ->  Foreign Scan on public.fdw137_t1
+               Output: c8, c1
+               Foreign Namespace: mongo_fdw_regress.test_tbl1
+(8 rows)
 
 SELECT sum(c8 ORDER BY c1 desc) FROM fdw137_t1 WHERE c1 > 1000 and c8 > 20;
  sum 
@@ -545,14 +531,17 @@ SELECT sum(c8 ORDER BY c1 desc) FROM fdw137_t1 WHERE c1 > 1000 and c8 > 20;
 -- DISTINCT within aggregate. Don't push down.
 EXPLAIN (VERBOSE, COSTS OFF)
 SELECT sum(DISTINCT (c1)) FROM fdw137_t1 WHERE c4 = 600 and c1 < 500;
-                       QUERY PLAN                       
---------------------------------------------------------
+                          QUERY PLAN                          
+--------------------------------------------------------------
  Aggregate
    Output: sum(DISTINCT c1)
-   ->  Foreign Scan on public.fdw137_t1
-         Output: _id, c1, c2, c3, c4, c5, c6, c7, c8
-         Foreign Namespace: mongo_fdw_regress.test_tbl1
-(5 rows)
+   ->  Sort
+         Output: c1
+         Sort Key: fdw137_t1.c1
+         ->  Foreign Scan on public.fdw137_t1
+               Output: c1
+               Foreign Namespace: mongo_fdw_regress.test_tbl1
+(8 rows)
 
 SELECT sum(DISTINCT (c1)) FROM fdw137_t1 WHERE c4 = 600 and c1 < 500;
  sum 
@@ -572,7 +561,7 @@ SELECT sum(DISTINCT (t1.c1)) FROM fdw137_t1 t1 join fdw137_t2 t2 ON (t1.c8 = t2.
          Group Key: t2.c1
          ->  Sort
                Output: t2.c1, t1.c1
-               Sort Key: t2.c1
+               Sort Key: t2.c1, t1.c1
                ->  Foreign Scan
                      Output: t2.c1, t1.c1
                      Foreign Namespace: (mongo_fdw_regress.test_tbl1 t1) INNER JOIN (mongo_fdw_regress.test_tbl2 t2)
@@ -592,11 +581,13 @@ SELECT sum(c1), sum(DISTINCT c1 ORDER BY c1) filter (WHERE c1%3 < 2), c4 FROM fd
 -----------------------------------------------------------------------------------
  GroupAggregate
    Output: sum(c1), sum(DISTINCT c1 ORDER BY c1) FILTER (WHERE ((c1 % 3) < 2)), c4
-   Group Key: fdw137_t1.c4
-   ->  Foreign Scan on public.fdw137_t1
-         Output: _id, c1, c2, c3, c4, c5, c6, c7, c8
-         Foreign Namespace: mongo_fdw_regress.test_tbl1
-(6 rows)
+   ->  Sort
+         Output: c1, c4
+         Sort Key: fdw137_t1.c1
+         ->  Foreign Scan on public.fdw137_t1
+               Output: c1, c4
+               Foreign Namespace: mongo_fdw_regress.test_tbl1
+(8 rows)
 
 SELECT sum(c1), sum(DISTINCT c1 ORDER BY c1) filter (WHERE c1%3 < 2), c4 FROM fdw137_t1 WHERE c4 = 600 GROUP BY c4;
  sum  | sum  | c4  
@@ -813,9 +804,10 @@ EXPLAIN (VERBOSE, COSTS OFF)
 SELECT q.b, count(fdw137_t1.c1), sum(q.a) FROM fdw137_t1 left join (SELECT min(13), avg(fdw137_t1.c1), sum(fdw137_t2.c1) FROM fdw137_t1 right join fdw137_t2 ON (fdw137_t1.c8 = fdw137_t2.c1) WHERE fdw137_t1.c8 = 20) q(a, b, c) ON (fdw137_t1.c8 = q.b) WHERE fdw137_t1.c1 between 100 and 500 GROUP BY q.b ORDER BY 1 nulls last, 2;
                                                                            QUERY PLAN                                                                            
 -----------------------------------------------------------------------------------------------------------------------------------------------------------------
- Sort
+ Incremental Sort
    Output: q.b, (count(fdw137_t1.c1)), (sum(q.a))
    Sort Key: q.b, (count(fdw137_t1.c1))
+   Presorted Key: q.b
    ->  GroupAggregate
          Output: q.b, count(fdw137_t1.c1), sum(q.a)
          Group Key: q.b
@@ -838,7 +830,7 @@ SELECT q.b, count(fdw137_t1.c1), sum(q.a) FROM fdw137_t1 left join (SELECT min(1
                                        ->  Foreign Scan
                                              Output: fdw137_t1_1.c1
                                              Foreign Namespace: (mongo_fdw_regress.test_tbl1 fdw137_t1) INNER JOIN (mongo_fdw_regress.test_tbl2 fdw137_t2)
-(25 rows)
+(26 rows)
 
 SELECT q.b, count(fdw137_t1.c1), sum(q.a) FROM fdw137_t1 left join (SELECT min(13), avg(fdw137_t1.c1), sum(fdw137_t2.c1) FROM fdw137_t1 right join fdw137_t2 ON (fdw137_t1.c8 = fdw137_t2.c1) WHERE fdw137_t1.c8 = 20) q(a, b, c) ON (fdw137_t1.c8 = q.b) WHERE fdw137_t1.c1 between 100 and 500 GROUP BY q.b ORDER BY 1 nulls last, 2;
  b | count | sum 
@@ -1126,14 +1118,14 @@ SELECT c1, sum(c1) FROM fprt1 GROUP BY c1 ORDER BY 2;
                                   QUERY PLAN                                   
 -------------------------------------------------------------------------------
  Sort
-   Output: ftprt1_p1.c1, (sum(ftprt1_p1.c1))
-   Sort Key: (sum(ftprt1_p1.c1))
+   Output: fprt1.c1, (sum(fprt1.c1))
+   Sort Key: (sum(fprt1.c1))
    ->  Append
          ->  Foreign Scan
-               Output: ftprt1_p1.c1, (sum(ftprt1_p1.c1))
+               Output: fprt1.c1, (sum(fprt1.c1))
                Foreign Namespace: Aggregate on (mongo_fdw_regress.test1 fprt1)
          ->  Foreign Scan
-               Output: ftprt1_p2.c1, (sum(ftprt1_p2.c1))
+               Output: fprt1_1.c1, (sum(fprt1_1.c1))
                Foreign Namespace: Aggregate on (mongo_fdw_regress.test2 fprt1)
 (10 rows)
 
@@ -1152,17 +1144,17 @@ SELECT c1, sum(c1) FROM fprt1 GROUP BY c1 ORDER BY 2;
 
 EXPLAIN (VERBOSE, COSTS OFF)
 SELECT c1, sum(c2), min(c2), count(*) FROM fprt1 GROUP BY c1 HAVING avg(c2) < 22 ORDER BY 2;
-                                        QUERY PLAN                                        
-------------------------------------------------------------------------------------------
+                                     QUERY PLAN                                     
+------------------------------------------------------------------------------------
  Sort
-   Output: ftprt1_p1.c1, (sum(ftprt1_p1.c2)), (min(ftprt1_p1.c2)), (count(*))
-   Sort Key: (sum(ftprt1_p1.c2))
+   Output: fprt1.c1, (sum(fprt1.c2)), (min(fprt1.c2)), (count(*))
+   Sort Key: (sum(fprt1.c2))
    ->  Append
          ->  Foreign Scan
-               Output: ftprt1_p1.c1, (sum(ftprt1_p1.c2)), (min(ftprt1_p1.c2)), (count(*))
+               Output: fprt1.c1, (sum(fprt1.c2)), (min(fprt1.c2)), (count(*))
                Foreign Namespace: Aggregate on (mongo_fdw_regress.test1 fprt1)
          ->  Foreign Scan
-               Output: ftprt1_p2.c1, (sum(ftprt1_p2.c2)), (min(ftprt1_p2.c2)), (count(*))
+               Output: fprt1_1.c1, (sum(fprt1_1.c2)), (min(fprt1_1.c2)), (count(*))
                Foreign Namespace: Aggregate on (mongo_fdw_regress.test2 fprt1)
 (10 rows)
 
@@ -1330,15 +1322,12 @@ ALTER FOREIGN TABLE fdw137_t1 OPTIONS (SET enable_aggregate_pushdown 'true');
 ALTER FOREIGN TABLE fdw137_t2 OPTIONS (SET enable_aggregate_pushdown 'true');
 EXPLAIN (VERBOSE, COSTS OFF)
 SELECT sum(t2.c1), t1.c8 FROM fdw137_t1 t1 LEFT JOIN fdw137_t2 t2 ON (t1.c8 = t2.c1) GROUP BY t1.c8 ORDER BY 2 ASC NULLS FIRST;
-                                                      QUERY PLAN                                                       
------------------------------------------------------------------------------------------------------------------------
- Sort
+                                                   QUERY PLAN                                                    
+-----------------------------------------------------------------------------------------------------------------
+ Foreign Scan
    Output: (sum(t2.c1)), t1.c8
-   Sort Key: t1.c8 NULLS FIRST
-   ->  Foreign Scan
-         Output: (sum(t2.c1)), t1.c8
-         Foreign Namespace: Aggregate on ((mongo_fdw_regress.test_tbl1 t1) LEFT JOIN (mongo_fdw_regress.test_tbl2 t2))
-(6 rows)
+   Foreign Namespace: Aggregate on ((mongo_fdw_regress.test_tbl1 t1) LEFT JOIN (mongo_fdw_regress.test_tbl2 t2))
+(3 rows)
 
 -- FDW-560: Aggregation over nested join. As nested join push down is not
 -- supported, aggregation shouldn't get pushdown.
@@ -1467,15 +1456,12 @@ SELECT a32, sum(a32) FROM f_test_large GROUP BY
   a21 ASC NULLS FIRST, a22 ASC NULLS FIRST, a23 ASC NULLS FIRST, a24 ASC NULLS FIRST, a25 ASC NULLS FIRST,
   a26 ASC NULLS FIRST, a27 ASC NULLS FIRST, a28 ASC NULLS FIRST, a29 ASC NULLS FIRST, a30 ASC NULLS FIRST,
   a31 ASC NULLS FIRST, a32 ASC NULLS FIRST;
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 QUERY PLAN                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 
-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
- Sort
+                                                                                      QUERY PLAN                                                                                      
+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Foreign Scan
    Output: a32, (sum(a32)), a01, a02, a03, a04, a05, a06, a07, a08, a09, a10, a11, a12, a13, a14, a15, a16, a17, a18, a19, a20, a21, a22, a23, a24, a25, a26, a27, a28, a29, a30, a31
-   Sort Key: f_test_large.a01 NULLS FIRST, f_test_large.a02 NULLS FIRST, f_test_large.a03 NULLS FIRST, f_test_large.a04 NULLS FIRST, f_test_large.a05 NULLS FIRST, f_test_large.a06 NULLS FIRST, f_test_large.a07 NULLS FIRST, f_test_large.a08 NULLS FIRST, f_test_large.a09 NULLS FIRST, f_test_large.a10 NULLS FIRST, f_test_large.a11 NULLS FIRST, f_test_large.a12 NULLS FIRST, f_test_large.a13 NULLS FIRST, f_test_large.a14 NULLS FIRST, f_test_large.a15 NULLS FIRST, f_test_large.a16 NULLS FIRST, f_test_large.a17 NULLS FIRST, f_test_large.a18 NULLS FIRST, f_test_large.a19 NULLS FIRST, f_test_large.a20 NULLS FIRST, f_test_large.a21 NULLS FIRST, f_test_large.a22 NULLS FIRST, f_test_large.a23 NULLS FIRST, f_test_large.a24 NULLS FIRST, f_test_large.a25 NULLS FIRST, f_test_large.a26 NULLS FIRST, f_test_large.a27 NULLS FIRST, f_test_large.a28 NULLS FIRST, f_test_large.a29 NULLS FIRST, f_test_large.a30 NULLS FIRST, f_test_large.a31 NULLS FIRST, f_test_large.a32 NULLS FIRST
-   ->  Foreign Scan
-         Output: a32, (sum(a32)), a01, a02, a03, a04, a05, a06, a07, a08, a09, a10, a11, a12, a13, a14, a15, a16, a17, a18, a19, a20, a21, a22, a23, a24, a25, a26, a27, a28, a29, a30, a31
-         Foreign Namespace: Aggregate on (mongo_fdw_regress.mongo_test_large f_test_large)
-(6 rows)
+   Foreign Namespace: Aggregate on (mongo_fdw_regress.mongo_test_large f_test_large)
+(3 rows)
 
 SELECT a32, sum(a32) FROM f_test_large GROUP BY
   a01, a02, a03, a04, a05, a06, a07, a08, a09, a10, a11, a12, a13, a14, a15,
@@ -1509,17 +1495,12 @@ SELECT avg(c1), c1 FROM fdw137_t2 GROUP BY c1 ORDER BY c1;
 
 EXPLAIN (VERBOSE, COSTS OFF)
 SELECT sum(c1), c1 FROM fdw137_t2 GROUP BY c1 ORDER BY c1 ASC NULLS FIRST LIMIT 1 OFFSET 1;
-                          QUERY PLAN                          
---------------------------------------------------------------
- Limit
+                                QUERY PLAN                                 
+---------------------------------------------------------------------------
+ Foreign Scan
    Output: (sum(c1)), c1
-   ->  GroupAggregate
-         Output: sum(c1), c1
-         Group Key: fdw137_t2.c1
-         ->  Foreign Scan on public.fdw137_t2
-               Output: _id, c1, c2, c3
-               Foreign Namespace: mongo_fdw_regress.test_tbl2
-(8 rows)
+   Foreign Namespace: Aggregate on (mongo_fdw_regress.test_tbl2 fdw137_t2)
+(3 rows)
 
 SELECT sum(c1), c1 FROM fdw137_t2 GROUP BY c1 ORDER BY c1 ASC NULLS FIRST LIMIT 1 OFFSET 1;
  sum | c1 
@@ -1530,17 +1511,12 @@ SELECT sum(c1), c1 FROM fdw137_t2 GROUP BY c1 ORDER BY c1 ASC NULLS FIRST LIMIT 
 -- Limit 0, Offset 0 with aggregates.
 EXPLAIN (VERBOSE, COSTS OFF)
 SELECT sum(c1), c1 FROM fdw137_t2 GROUP BY c1 ORDER BY c1 ASC NULLS FIRST LIMIT 0 OFFSET 0;
-                          QUERY PLAN                          
---------------------------------------------------------------
- Limit
+                                QUERY PLAN                                 
+---------------------------------------------------------------------------
+ Foreign Scan
    Output: (sum(c1)), c1
-   ->  GroupAggregate
-         Output: sum(c1), c1
-         Group Key: fdw137_t2.c1
-         ->  Foreign Scan on public.fdw137_t2
-               Output: _id, c1, c2, c3
-               Foreign Namespace: mongo_fdw_regress.test_tbl2
-(8 rows)
+   Foreign Namespace: Aggregate on (mongo_fdw_regress.test_tbl2 fdw137_t2)
+(3 rows)
 
 SELECT sum(c1), c1 FROM fdw137_t2 GROUP BY c1 ORDER BY c1 ASC NULLS FIRST LIMIT 0 OFFSET 0;
  sum | c1 
@@ -1550,17 +1526,12 @@ SELECT sum(c1), c1 FROM fdw137_t2 GROUP BY c1 ORDER BY c1 ASC NULLS FIRST LIMIT 
 -- Limit NULL
 EXPLAIN (VERBOSE, COSTS OFF)
 SELECT sum(c1), c1 FROM fdw137_t2 GROUP BY c1 ORDER BY c1 ASC NULLS FIRST LIMIT NULL OFFSET 2;
-                                      QUERY PLAN                                       
----------------------------------------------------------------------------------------
- Limit
+                                QUERY PLAN                                 
+---------------------------------------------------------------------------
+ Foreign Scan
    Output: (sum(c1)), c1
-   ->  Sort
-         Output: (sum(c1)), c1
-         Sort Key: fdw137_t2.c1 NULLS FIRST
-         ->  Foreign Scan
-               Output: (sum(c1)), c1
-               Foreign Namespace: Aggregate on (mongo_fdw_regress.test_tbl2 fdw137_t2)
-(8 rows)
+   Foreign Namespace: Aggregate on (mongo_fdw_regress.test_tbl2 fdw137_t2)
+(3 rows)
 
 SELECT sum(c1), c1 FROM fdw137_t2 GROUP BY c1 ORDER BY c1 ASC NULLS FIRST LIMIT NULL OFFSET 2;
  sum | c1 
@@ -1574,17 +1545,12 @@ SELECT sum(c1), c1 FROM fdw137_t2 GROUP BY c1 ORDER BY c1 ASC NULLS FIRST LIMIT 
 -- Limit ALL
 EXPLAIN (VERBOSE, COSTS OFF)
 SELECT sum(c1), c1 FROM fdw137_t2 GROUP BY c1 ORDER BY c1 ASC NULLS FIRST LIMIT ALL OFFSET 2;
-                                      QUERY PLAN                                       
----------------------------------------------------------------------------------------
- Limit
+                                QUERY PLAN                                 
+---------------------------------------------------------------------------
+ Foreign Scan
    Output: (sum(c1)), c1
-   ->  Sort
-         Output: (sum(c1)), c1
-         Sort Key: fdw137_t2.c1 NULLS FIRST
-         ->  Foreign Scan
-               Output: (sum(c1)), c1
-               Foreign Namespace: Aggregate on (mongo_fdw_regress.test_tbl2 fdw137_t2)
-(8 rows)
+   Foreign Namespace: Aggregate on (mongo_fdw_regress.test_tbl2 fdw137_t2)
+(3 rows)
 
 SELECT sum(c1), c1 FROM fdw137_t2 GROUP BY c1 ORDER BY c1 ASC NULLS FIRST LIMIT ALL OFFSET 2;
  sum | c1 
@@ -1598,17 +1564,14 @@ SELECT sum(c1), c1 FROM fdw137_t2 GROUP BY c1 ORDER BY c1 ASC NULLS FIRST LIMIT 
 -- Limit with -ve value. Shouldn't pushdown.
 EXPLAIN (VERBOSE, COSTS FALSE)
 SELECT c1, sum(c1) FROM fdw137_t2 GROUP BY c1 ORDER BY 1 ASC NULLS FIRST LIMIT -1;
-                          QUERY PLAN                          
---------------------------------------------------------------
+                                   QUERY PLAN                                    
+---------------------------------------------------------------------------------
  Limit
    Output: c1, (sum(c1))
-   ->  GroupAggregate
-         Output: c1, sum(c1)
-         Group Key: fdw137_t2.c1
-         ->  Foreign Scan on public.fdw137_t2
-               Output: _id, c1, c2, c3
-               Foreign Namespace: mongo_fdw_regress.test_tbl2
-(8 rows)
+   ->  Foreign Scan
+         Output: c1, (sum(c1))
+         Foreign Namespace: Aggregate on (mongo_fdw_regress.test_tbl2 fdw137_t2)
+(5 rows)
 
 -- Should throw an error.
 SELECT c1, sum(c1) FROM fdw137_t2 GROUP BY c1 ORDER BY 1 ASC NULLS FIRST LIMIT -1;
@@ -1616,17 +1579,14 @@ ERROR:  LIMIT must not be negative
 -- Offset with -ve value. Shouldn't pushdown.
 EXPLAIN (VERBOSE, COSTS FALSE)
 SELECT c1, sum(c1) FROM fdw137_t2 GROUP BY c1 ORDER BY 1 ASC NULLS FIRST OFFSET -2;
-                                      QUERY PLAN                                       
----------------------------------------------------------------------------------------
+                                   QUERY PLAN                                    
+---------------------------------------------------------------------------------
  Limit
    Output: c1, (sum(c1))
-   ->  Sort
+   ->  Foreign Scan
          Output: c1, (sum(c1))
-         Sort Key: fdw137_t2.c1 NULLS FIRST
-         ->  Foreign Scan
-               Output: c1, (sum(c1))
-               Foreign Namespace: Aggregate on (mongo_fdw_regress.test_tbl2 fdw137_t2)
-(8 rows)
+         Foreign Namespace: Aggregate on (mongo_fdw_regress.test_tbl2 fdw137_t2)
+(5 rows)
 
 -- Should throw an error.
 SELECT c1, sum(c1) FROM fdw137_t2 GROUP BY c1 ORDER BY 1 ASC NULLS FIRST OFFSET -2;
@@ -1634,17 +1594,14 @@ ERROR:  OFFSET must not be negative
 -- Limit/Offset with -ve value. Shouldn't pushdown.
 EXPLAIN (VERBOSE, COSTS FALSE)
 SELECT c1, avg(c1) FROM fdw137_t2 GROUP BY c1 ORDER BY c1 ASC NULLS FIRST LIMIT -1 OFFSET -2;
-                          QUERY PLAN                          
---------------------------------------------------------------
+                                   QUERY PLAN                                    
+---------------------------------------------------------------------------------
  Limit
    Output: c1, (avg(c1))
-   ->  GroupAggregate
-         Output: c1, avg(c1)
-         Group Key: fdw137_t2.c1
-         ->  Foreign Scan on public.fdw137_t2
-               Output: _id, c1, c2, c3
-               Foreign Namespace: mongo_fdw_regress.test_tbl2
-(8 rows)
+   ->  Foreign Scan
+         Output: c1, (avg(c1))
+         Foreign Namespace: Aggregate on (mongo_fdw_regress.test_tbl2 fdw137_t2)
+(5 rows)
 
 -- Should throw an error.
 SELECT c1, avg(c1) FROM fdw137_t2 GROUP BY c1 ORDER BY c1 ASC NULLS FIRST LIMIT -1 OFFSET -2;
@@ -1652,21 +1609,18 @@ ERROR:  OFFSET must not be negative
 -- Limit with expression evaluating to -ve value.
 EXPLAIN (VERBOSE, COSTS FALSE)
 SELECT c1, avg(c1) FROM fdw137_t2 GROUP BY c1 ORDER BY c1 ASC NULLS FIRST LIMIT (1 - (SELECT COUNT(*) FROM fdw137_t2));
-                                      QUERY PLAN                                       
----------------------------------------------------------------------------------------
+                                    QUERY PLAN                                     
+-----------------------------------------------------------------------------------
  Limit
    Output: fdw137_t2.c1, (avg(fdw137_t2.c1))
-   InitPlan 1 (returns $0)
+   InitPlan 1
      ->  Foreign Scan
            Output: (count(*))
            Foreign Namespace: Aggregate on (mongo_fdw_regress.test_tbl2 fdw137_t2)
-   ->  Sort
+   ->  Foreign Scan
          Output: fdw137_t2.c1, (avg(fdw137_t2.c1))
-         Sort Key: fdw137_t2.c1 NULLS FIRST
-         ->  Foreign Scan
-               Output: fdw137_t2.c1, (avg(fdw137_t2.c1))
-               Foreign Namespace: Aggregate on (mongo_fdw_regress.test_tbl2 fdw137_t2)
-(12 rows)
+         Foreign Namespace: Aggregate on (mongo_fdw_regress.test_tbl2 fdw137_t2)
+(9 rows)
 
 SELECT c1, avg(c1) FROM fdw137_t2 GROUP BY c1 ORDER BY c1 ASC NULLS FIRST LIMIT (1 - (SELECT COUNT(*) FROM fdw137_t2));
 ERROR:  LIMIT must not be negative
@@ -1760,15 +1714,12 @@ ALTER FOREIGN TABLE fdw137_t1 OPTIONS (SET enable_aggregate_pushdown 'true');
 ALTER FOREIGN TABLE fdw137_t2 OPTIONS (SET enable_aggregate_pushdown 'true');
 EXPLAIN (VERBOSE, COSTS OFF)
 SELECT count(*), t1.c8 FROM fdw137_t1 t1 LEFT JOIN fdw137_t2 t2 ON (t1.c8 = t2.c1) GROUP BY t1.c8 ORDER BY 2 ASC NULLS FIRST;
-                                                      QUERY PLAN                                                       
------------------------------------------------------------------------------------------------------------------------
- Sort
+                                                   QUERY PLAN                                                    
+-----------------------------------------------------------------------------------------------------------------
+ Foreign Scan
    Output: (count(*)), t1.c8
-   Sort Key: t1.c8 NULLS FIRST
-   ->  Foreign Scan
-         Output: (count(*)), t1.c8
-         Foreign Namespace: Aggregate on ((mongo_fdw_regress.test_tbl1 t1) LEFT JOIN (mongo_fdw_regress.test_tbl2 t2))
-(6 rows)
+   Foreign Namespace: Aggregate on ((mongo_fdw_regress.test_tbl1 t1) LEFT JOIN (mongo_fdw_regress.test_tbl2 t2))
+(3 rows)
 
 SELECT count(*), t1.c8 FROM fdw137_t1 t1 LEFT JOIN fdw137_t2 t2 ON (t1.c8 = t2.c1) GROUP BY t1.c8 ORDER BY 2 ASC NULLS FIRST;
  count | c8 
@@ -1848,15 +1799,12 @@ ALTER FOREIGN TABLE fdw137_t1 OPTIONS (SET enable_aggregate_pushdown 'true');
 ALTER FOREIGN TABLE fdw137_t1 OPTIONS (ADD enable_order_by_pushdown 'true');
 EXPLAIN (VERBOSE, COSTS OFF)
 SELECT c2, sum(c1) FROM fdw137_t1 GROUP BY c1, c2 HAVING min(c1) > 500 ORDER BY 1 ASC NULLS FIRST;
-                                   QUERY PLAN                                    
----------------------------------------------------------------------------------
- Sort
+                                QUERY PLAN                                 
+---------------------------------------------------------------------------
+ Foreign Scan
    Output: c2, (sum(c1)), c1
-   Sort Key: fdw137_t1.c2 NULLS FIRST
-   ->  Foreign Scan
-         Output: c2, (sum(c1)), c1
-         Foreign Namespace: Aggregate on (mongo_fdw_regress.test_tbl1 fdw137_t1)
-(6 rows)
+   Foreign Namespace: Aggregate on (mongo_fdw_regress.test_tbl1 fdw137_t1)
+(3 rows)
 
 SELECT c2, sum(c1) FROM fdw137_t1 GROUP BY c1, c2 HAVING min(c1) > 500 ORDER BY 1 ASC NULLS FIRST;
   c2   | sum  
@@ -1880,15 +1828,12 @@ ALTER FOREIGN TABLE fdw137_t2 OPTIONS (ADD enable_order_by_pushdown 'true');
 EXPLAIN (VERBOSE, COSTS OFF)
 SELECT sum(t2.c1), t1.c8, avg(t1.c8) FROM fdw137_t1 t1 LEFT JOIN fdw137_t2 t2 ON (t1.c8 = t2.c1) WHERE t1.c8 > 10 GROUP BY t1.c8 HAVING avg(t1.c8)*1 > 10
   ORDER BY 2 ASC NULLS FIRST;
-                                                      QUERY PLAN                                                       
------------------------------------------------------------------------------------------------------------------------
- Sort
+                                                   QUERY PLAN                                                    
+-----------------------------------------------------------------------------------------------------------------
+ Foreign Scan
    Output: (sum(t2.c1)), t1.c8, (avg(t1.c8))
-   Sort Key: t1.c8 NULLS FIRST
-   ->  Foreign Scan
-         Output: (sum(t2.c1)), t1.c8, (avg(t1.c8))
-         Foreign Namespace: Aggregate on ((mongo_fdw_regress.test_tbl1 t1) LEFT JOIN (mongo_fdw_regress.test_tbl2 t2))
-(6 rows)
+   Foreign Namespace: Aggregate on ((mongo_fdw_regress.test_tbl1 t1) LEFT JOIN (mongo_fdw_regress.test_tbl2 t2))
+(3 rows)
 
 SELECT sum(t2.c1), t1.c8, avg(t1.c8) FROM fdw137_t1 t1 LEFT JOIN fdw137_t2 t2 ON (t1.c8 = t2.c1) WHERE t1.c8 > 10 GROUP BY t1.c8 HAVING avg(t1.c8)*1 > 10
   ORDER BY 2 ASC NULLS FIRST;
@@ -1956,15 +1901,12 @@ ALTER SERVER mongo_server OPTIONS (SET enable_order_by_pushdown 'false');
 ALTER FOREIGN TABLE fdw137_t1 OPTIONS (SET enable_order_by_pushdown 'true');
 EXPLAIN (VERBOSE, COSTS OFF)
 SELECT c2, sum(c1) FROM fdw137_t1 GROUP BY c1, c2 HAVING min(c1) > 500 ORDER BY 1 ASC NULLS FIRST;
-                                   QUERY PLAN                                    
----------------------------------------------------------------------------------
- Sort
+                                QUERY PLAN                                 
+---------------------------------------------------------------------------
+ Foreign Scan
    Output: c2, (sum(c1)), c1
-   Sort Key: fdw137_t1.c2 NULLS FIRST
-   ->  Foreign Scan
-         Output: c2, (sum(c1)), c1
-         Foreign Namespace: Aggregate on (mongo_fdw_regress.test_tbl1 fdw137_t1)
-(6 rows)
+   Foreign Namespace: Aggregate on (mongo_fdw_regress.test_tbl1 fdw137_t1)
+(3 rows)
 
 SELECT c2, sum(c1) FROM fdw137_t1 GROUP BY c1, c2 HAVING min(c1) > 500 ORDER BY 1 ASC NULLS FIRST;
   c2   | sum  
@@ -1986,15 +1928,12 @@ ALTER FOREIGN TABLE fdw137_t2 OPTIONS (SET enable_order_by_pushdown 'true');
 EXPLAIN (VERBOSE, COSTS OFF)
 SELECT sum(t2.c1), t1.c8, avg(t1.c8) FROM fdw137_t1 t1 LEFT JOIN fdw137_t2 t2 ON (t1.c8 = t2.c1) WHERE t1.c8 > 10 GROUP BY t1.c8 HAVING avg(t1.c8)*1 > 10
   ORDER BY 2 ASC NULLS FIRST;
-                                                      QUERY PLAN                                                       
------------------------------------------------------------------------------------------------------------------------
- Sort
+                                                   QUERY PLAN                                                    
+-----------------------------------------------------------------------------------------------------------------
+ Foreign Scan
    Output: (sum(t2.c1)), t1.c8, (avg(t1.c8))
-   Sort Key: t1.c8 NULLS FIRST
-   ->  Foreign Scan
-         Output: (sum(t2.c1)), t1.c8, (avg(t1.c8))
-         Foreign Namespace: Aggregate on ((mongo_fdw_regress.test_tbl1 t1) LEFT JOIN (mongo_fdw_regress.test_tbl2 t2))
-(6 rows)
+   Foreign Namespace: Aggregate on ((mongo_fdw_regress.test_tbl1 t1) LEFT JOIN (mongo_fdw_regress.test_tbl2 t2))
+(3 rows)
 
 SELECT sum(t2.c1), t1.c8, avg(t1.c8) FROM fdw137_t1 t1 LEFT JOIN fdw137_t2 t2 ON (t1.c8 = t2.c1) WHERE t1.c8 > 10 GROUP BY t1.c8 HAVING avg(t1.c8)*1 > 10
   ORDER BY 2 ASC NULLS FIRST;

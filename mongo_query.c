@@ -18,13 +18,8 @@
 #include <bson.h>
 #include <json.h>
 
-#if PG_VERSION_NUM < 120000
-#include "access/sysattr.h"
-#endif
 #include "access/htup_details.h"
-#if PG_VERSION_NUM >= 120000
 #include "access/table.h"
-#endif
 #include "catalog/heap.h"
 #include "catalog/pg_collation.h"
 #include "catalog/pg_operator.h"
@@ -33,13 +28,7 @@
 #endif
 #include "mongoc.h"
 #include "mongo_query.h"
-#if PG_VERSION_NUM < 120000
-#include "nodes/relation.h"
-#include "optimizer/var.h"
-#endif
-#if PG_VERSION_NUM >= 120000
 #include "optimizer/optimizer.h"
-#endif
 #include "parser/parsetree.h"
 #include "utils/rel.h"
 #include "utils/syscache.h"

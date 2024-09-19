@@ -26,14 +26,12 @@ SELECT c1, c2, c3 FROM fdw131_t1 ORDER BY 1;
 -- Limit with Offset should get pushdown.
 EXPLAIN (VERBOSE, COSTS FALSE)
 SELECT c1, c2, c3 FROM fdw131_t1 ORDER BY 1 ASC NULLS FIRST LIMIT 2 OFFSET 2;
-                       QUERY PLAN                       
---------------------------------------------------------
- Limit
+                    QUERY PLAN                    
+--------------------------------------------------
+ Foreign Scan on public.fdw131_t1
    Output: c1, c2, c3
-   ->  Foreign Scan on public.fdw131_t1
-         Output: c1, c2, c3
-         Foreign Namespace: mongo_fdw_regress.test_tbl2
-(5 rows)
+   Foreign Namespace: mongo_fdw_regress.test_tbl2
+(3 rows)
 
 SELECT c1, c2, c3 FROM fdw131_t1 ORDER BY 1 ASC NULLS FIRST LIMIT 2 OFFSET 2;
  c1 |  c2   |   c3   
@@ -91,14 +89,12 @@ SET mongo_fdw.enable_order_by_pushdown TO ON;
 -- Only limit should get pushdown.
 EXPLAIN (VERBOSE, COSTS FALSE)
 SELECT c1, c2, c3 FROM fdw131_t1 ORDER BY 2 DESC NULLS LAST LIMIT 3;
-                       QUERY PLAN                       
---------------------------------------------------------
- Limit
+                    QUERY PLAN                    
+--------------------------------------------------
+ Foreign Scan on public.fdw131_t1
    Output: c1, c2, c3
-   ->  Foreign Scan on public.fdw131_t1
-         Output: c1, c2, c3
-         Foreign Namespace: mongo_fdw_regress.test_tbl2
-(5 rows)
+   Foreign Namespace: mongo_fdw_regress.test_tbl2
+(3 rows)
 
 SELECT c1, c2, c3 FROM fdw131_t1 ORDER BY 2 DESC NULLS LAST LIMIT 3;
  c1 |     c2      |   c3   
@@ -111,14 +107,12 @@ SELECT c1, c2, c3 FROM fdw131_t1 ORDER BY 2 DESC NULLS LAST LIMIT 3;
 -- Expression in limit clause. Should get pushdown.
 EXPLAIN (VERBOSE, COSTS FALSE)
 SELECT c1, c2, c3 FROM fdw131_t1 ORDER BY 3 DESC NULLS LAST LIMIT round(3.2) OFFSET 2;
-                       QUERY PLAN                       
---------------------------------------------------------
- Limit
+                    QUERY PLAN                    
+--------------------------------------------------
+ Foreign Scan on public.fdw131_t1
    Output: c1, c2, c3
-   ->  Foreign Scan on public.fdw131_t1
-         Output: c1, c2, c3
-         Foreign Namespace: mongo_fdw_regress.test_tbl2
-(5 rows)
+   Foreign Namespace: mongo_fdw_regress.test_tbl2
+(3 rows)
 
 SELECT c1, c2, c3 FROM fdw131_t1 ORDER BY 3 DESC NULLS LAST LIMIT round(3.2) OFFSET 2;
  c1 |       c2       |    c3    
@@ -130,14 +124,12 @@ SELECT c1, c2, c3 FROM fdw131_t1 ORDER BY 3 DESC NULLS LAST LIMIT round(3.2) OFF
 -- Only Offset without limit should get pushdown.
 EXPLAIN (VERBOSE, COSTS FALSE)
 SELECT c1, c2, c3 FROM fdw131_t1 ORDER BY 3 ASC NULLS FIRST OFFSET 2;
-                       QUERY PLAN                       
---------------------------------------------------------
- Limit
+                    QUERY PLAN                    
+--------------------------------------------------
+ Foreign Scan on public.fdw131_t1
    Output: c1, c2, c3
-   ->  Foreign Scan on public.fdw131_t1
-         Output: c1, c2, c3
-         Foreign Namespace: mongo_fdw_regress.test_tbl2
-(5 rows)
+   Foreign Namespace: mongo_fdw_regress.test_tbl2
+(3 rows)
 
 SELECT c1, c2, c3 FROM fdw131_t1 ORDER BY 3 ASC NULLS FIRST OFFSET 2;
  c1 |     c2      |   c3   
@@ -168,14 +160,12 @@ SELECT c1, c2, c3 FROM fdw131_t1 ORDER BY 1 ASC NULLS FIRST LIMIT ALL;
 -- Limit ALL with OFFSET
 EXPLAIN (VERBOSE, COSTS FALSE)
 SELECT c1, c2, c3 FROM fdw131_t1 ORDER BY 1 ASC NULLS FIRST LIMIT ALL OFFSET 1;
-                       QUERY PLAN                       
---------------------------------------------------------
- Limit
+                    QUERY PLAN                    
+--------------------------------------------------
+ Foreign Scan on public.fdw131_t1
    Output: c1, c2, c3
-   ->  Foreign Scan on public.fdw131_t1
-         Output: c1, c2, c3
-         Foreign Namespace: mongo_fdw_regress.test_tbl2
-(5 rows)
+   Foreign Namespace: mongo_fdw_regress.test_tbl2
+(3 rows)
 
 SELECT c1, c2, c3 FROM fdw131_t1 ORDER BY 1 ASC NULLS FIRST LIMIT ALL OFFSET 1;
  c1 |       c2       |    c3    
@@ -206,14 +196,12 @@ SELECT c1, c2, c3 FROM fdw131_t1 ORDER BY 3 ASC NULLS FIRST LIMIT NULL;
 
 EXPLAIN (VERBOSE, COSTS FALSE)
 SELECT c1, c2, c3 FROM fdw131_t1 ORDER BY 3 ASC NULLS FIRST LIMIT NULL OFFSET 2;
-                       QUERY PLAN                       
---------------------------------------------------------
- Limit
+                    QUERY PLAN                    
+--------------------------------------------------
+ Foreign Scan on public.fdw131_t1
    Output: c1, c2, c3
-   ->  Foreign Scan on public.fdw131_t1
-         Output: c1, c2, c3
-         Foreign Namespace: mongo_fdw_regress.test_tbl2
-(5 rows)
+   Foreign Namespace: mongo_fdw_regress.test_tbl2
+(3 rows)
 
 SELECT c1, c2, c3 FROM fdw131_t1 ORDER BY 3 ASC NULLS FIRST LIMIT NULL OFFSET 2;
  c1 |     c2      |   c3   
@@ -225,14 +213,12 @@ SELECT c1, c2, c3 FROM fdw131_t1 ORDER BY 3 ASC NULLS FIRST LIMIT NULL OFFSET 2;
 -- Limit 0 and Offset 0
 EXPLAIN (VERBOSE, COSTS FALSE)
 SELECT c1, c2, c3 FROM fdw131_t1 ORDER BY 1 ASC NULLS FIRST LIMIT 0;
-                       QUERY PLAN                       
---------------------------------------------------------
- Limit
+                    QUERY PLAN                    
+--------------------------------------------------
+ Foreign Scan on public.fdw131_t1
    Output: c1, c2, c3
-   ->  Foreign Scan on public.fdw131_t1
-         Output: c1, c2, c3
-         Foreign Namespace: mongo_fdw_regress.test_tbl2
-(5 rows)
+   Foreign Namespace: mongo_fdw_regress.test_tbl2
+(3 rows)
 
 SELECT c1, c2, c3 FROM fdw131_t1 ORDER BY 1 ASC NULLS FIRST LIMIT 0;
  c1 | c2 | c3 
@@ -241,14 +227,12 @@ SELECT c1, c2, c3 FROM fdw131_t1 ORDER BY 1 ASC NULLS FIRST LIMIT 0;
 
 EXPLAIN (VERBOSE, COSTS FALSE)
 SELECT c1, c2, c3 FROM fdw131_t1 ORDER BY 1 ASC NULLS FIRST LIMIT 0 OFFSET 0;
-                       QUERY PLAN                       
---------------------------------------------------------
- Limit
+                    QUERY PLAN                    
+--------------------------------------------------
+ Foreign Scan on public.fdw131_t1
    Output: c1, c2, c3
-   ->  Foreign Scan on public.fdw131_t1
-         Output: c1, c2, c3
-         Foreign Namespace: mongo_fdw_regress.test_tbl2
-(5 rows)
+   Foreign Namespace: mongo_fdw_regress.test_tbl2
+(3 rows)
 
 SELECT c1, c2, c3 FROM fdw131_t1 ORDER BY 1 ASC NULLS FIRST LIMIT 0 OFFSET 0;
  c1 | c2 | c3 
@@ -258,14 +242,12 @@ SELECT c1, c2, c3 FROM fdw131_t1 ORDER BY 1 ASC NULLS FIRST LIMIT 0 OFFSET 0;
 -- Offset NULL.
 EXPLAIN (VERBOSE, COSTS FALSE)
 SELECT c1, c2, c3 FROM fdw131_t1 ORDER BY 2 ASC NULLS FIRST LIMIT 5 OFFSET NULL;
-                       QUERY PLAN                       
---------------------------------------------------------
- Limit
+                    QUERY PLAN                    
+--------------------------------------------------
+ Foreign Scan on public.fdw131_t1
    Output: c1, c2, c3
-   ->  Foreign Scan on public.fdw131_t1
-         Output: c1, c2, c3
-         Foreign Namespace: mongo_fdw_regress.test_tbl2
-(5 rows)
+   Foreign Namespace: mongo_fdw_regress.test_tbl2
+(3 rows)
 
 SELECT c1, c2, c3 FROM fdw131_t1 ORDER BY 2 ASC NULLS FIRST LIMIT 5 OFFSET NULL;
  c1 |       c2       |    c3    
@@ -283,7 +265,7 @@ SELECT c1, c2, c3 FROM fdw131_t1 ORDER BY 2 LIMIT (SELECT COUNT(*) FROM fdw131_t
 -----------------------------------------------------------------------------------
  Limit
    Output: fdw131_t1.c1, fdw131_t1.c2, fdw131_t1.c3
-   InitPlan 1 (returns $0)
+   InitPlan 1
      ->  Foreign Scan
            Output: (count(*))
            Foreign Namespace: Aggregate on (mongo_fdw_regress.test_tbl2 fdw131_t1)
@@ -311,7 +293,7 @@ SELECT c1, c2, c3 FROM fdw131_t1 ORDER BY 1 ASC NULLS FIRST LIMIT (10 - (SELECT 
 -----------------------------------------------------------------------------------
  Limit
    Output: fdw131_t1.c1, fdw131_t1.c2, fdw131_t1.c3
-   InitPlan 1 (returns $0)
+   InitPlan 1
      ->  Foreign Scan
            Output: (count(*))
            Foreign Namespace: Aggregate on (mongo_fdw_regress.test_tbl2 fdw131_t1)
@@ -381,7 +363,7 @@ SELECT c1, c2, c3 FROM fdw131_t1 ORDER BY 1 ASC NULLS FIRST LIMIT (1 - (SELECT C
 -----------------------------------------------------------------------------------
  Limit
    Output: fdw131_t1.c1, fdw131_t1.c2, fdw131_t1.c3
-   InitPlan 1 (returns $0)
+   InitPlan 1
      ->  Foreign Scan
            Output: (count(*))
            Foreign Namespace: Aggregate on (mongo_fdw_regress.test_tbl2 fdw131_t1)

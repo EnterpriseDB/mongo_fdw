@@ -100,12 +100,11 @@ SELECT d.c1, d.c2, e.c1, e.c2, e.c6, e.c8
 EXPLAIN (COSTS OFF)
 SELECT d.c1, d.c2, e.c1, e.c2, e.c6, e.c8
   FROM f_test_tbl2 d LEFT OUTER JOIN f_test_tbl1 e ON (d.c1 = e.c8 AND e.c4 > d.c1 OR e.c2 < d.c3) ORDER BY 1 ASC NULLS FIRST, 3 ASC NULLS FIRST OFFSET 50;
-                                              QUERY PLAN                                              
-------------------------------------------------------------------------------------------------------
- Limit
-   ->  Foreign Scan
-         Foreign Namespace: (mongo_fdw_regress.test_tbl2 d) LEFT JOIN (mongo_fdw_regress.test_tbl1 e)
-(3 rows)
+                                           QUERY PLAN                                           
+------------------------------------------------------------------------------------------------
+ Foreign Scan
+   Foreign Namespace: (mongo_fdw_regress.test_tbl2 d) LEFT JOIN (mongo_fdw_regress.test_tbl1 e)
+(2 rows)
 
 SELECT d.c1, d.c2, e.c1, e.c2, e.c6, e.c8
   FROM f_test_tbl2 d LEFT OUTER JOIN f_test_tbl1 e ON (d.c1 = e.c8 AND e.c4 > d.c1 OR e.c2 < d.c3) ORDER BY 1 ASC NULLS FIRST, 3 ASC NULLS FIRST OFFSET 50;
@@ -672,17 +671,16 @@ EXPLAIN (COSTS OFF)
 SELECT l.c1, l.c6, l.c8
   FROM l_test_tbl1 l
     WHERE l.c1 = (SELECT f1.c1 FROM f_test_tbl1 f1 LEFT JOIN f_test_tbl2 f2 ON (f1.c8 = f2.c1) LIMIT 1) ORDER BY 1, 3;
-                                                   QUERY PLAN                                                   
-----------------------------------------------------------------------------------------------------------------
+                                                QUERY PLAN                                                
+----------------------------------------------------------------------------------------------------------
  Sort
    Sort Key: l.c8
-   InitPlan 1 (returns $0)
-     ->  Limit
-           ->  Foreign Scan
-                 Foreign Namespace: (mongo_fdw_regress.test_tbl1 f1) LEFT JOIN (mongo_fdw_regress.test_tbl2 f2)
+   InitPlan 1
+     ->  Foreign Scan
+           Foreign Namespace: (mongo_fdw_regress.test_tbl1 f1) LEFT JOIN (mongo_fdw_regress.test_tbl2 f2)
    ->  Seq Scan on l_test_tbl1 l
-         Filter: (c1 = $0)
-(8 rows)
+         Filter: (c1 = (InitPlan 1).col1)
+(7 rows)
 
 SELECT l.c1, l.c6, l.c8
   FROM l_test_tbl1 l
@@ -696,17 +694,16 @@ EXPLAIN (COSTS OFF)
 SELECT l.c1, l.c6, l.c8
   FROM l_test_tbl1 l
     WHERE l.c1 = (SELECT f1.c1 FROM f_test_tbl1 f1 INNER JOIN f_test_tbl2 f2 ON (f1.c8 = f2.c1) LIMIT 1) ORDER BY 1, 3;
-                                                   QUERY PLAN                                                    
------------------------------------------------------------------------------------------------------------------
+                                                QUERY PLAN                                                 
+-----------------------------------------------------------------------------------------------------------
  Sort
    Sort Key: l.c8
-   InitPlan 1 (returns $0)
-     ->  Limit
-           ->  Foreign Scan
-                 Foreign Namespace: (mongo_fdw_regress.test_tbl1 f1) INNER JOIN (mongo_fdw_regress.test_tbl2 f2)
+   InitPlan 1
+     ->  Foreign Scan
+           Foreign Namespace: (mongo_fdw_regress.test_tbl1 f1) INNER JOIN (mongo_fdw_regress.test_tbl2 f2)
    ->  Seq Scan on l_test_tbl1 l
-         Filter: (c1 = $0)
-(8 rows)
+         Filter: (c1 = (InitPlan 1).col1)
+(7 rows)
 
 SELECT l.c1, l.c6, l.c8
   FROM l_test_tbl1 l
@@ -1020,18 +1017,15 @@ WITH t (c1_1, c1_3, c2_1) AS (
   SELECT d.c1, d.c3, e.c1
     FROM f_test_tbl1 d JOIN f_test_tbl2 e ON (d.c8 = e.c1)
 ) SELECT c1_1, c2_1 FROM t ORDER BY c1_3, c1_1;
-                                               QUERY PLAN                                                
----------------------------------------------------------------------------------------------------------
+                                              QUERY PLAN                                               
+-------------------------------------------------------------------------------------------------------
  Sort
-   Output: t.c1_1, t.c2_1, t.c1_3
-   Sort Key: t.c1_3, t.c1_1
-   CTE t
-     ->  Foreign Scan
-           Output: d.c1, d.c3, e.c1
-           Foreign Namespace: (mongo_fdw_regress.test_tbl1 d) INNER JOIN (mongo_fdw_regress.test_tbl2 e)
-   ->  CTE Scan on t
-         Output: t.c1_1, t.c2_1, t.c1_3
-(9 rows)
+   Output: d.c1, e.c1, d.c3
+   Sort Key: d.c3, d.c1
+   ->  Foreign Scan
+         Output: d.c1, e.c1, d.c3
+         Foreign Namespace: (mongo_fdw_regress.test_tbl1 d) INNER JOIN (mongo_fdw_regress.test_tbl2 e)
+(6 rows)
 
 WITH t (c1_1, c1_3, c2_1) AS (
   SELECT d.c1, d.c3, e.c1
@@ -1359,35 +1353,31 @@ SELECT e.c1, d.c2
 EXPLAIN (COSTS false, VERBOSE)
 SELECT t1.c1, t2.c1
   FROM f_test_tbl1 t1 JOIN f_test_tbl2 t2 ON (TRUE) ORDER BY t1.c1 ASC NULLS FIRST, t2.c1 ASC NULLS FIRST LIMIT round(2.2) OFFSET 2;
-                                               QUERY PLAN                                                
----------------------------------------------------------------------------------------------------------
- Limit
+                                            QUERY PLAN                                             
+---------------------------------------------------------------------------------------------------
+ Foreign Scan
    Output: t1.c1, t2.c1
-   ->  Foreign Scan
-         Output: t1.c1, t2.c1
-         Foreign Namespace: (mongo_fdw_regress.test_tbl1 t1) INNER JOIN (mongo_fdw_regress.test_tbl2 t2)
-(5 rows)
+   Foreign Namespace: (mongo_fdw_regress.test_tbl1 t1) INNER JOIN (mongo_fdw_regress.test_tbl2 t2)
+(3 rows)
 
 SELECT t1.c1, t2.c1
   FROM f_test_tbl1 t1 JOIN f_test_tbl2 t2 ON (TRUE) ORDER BY t1.c1 ASC NULLS FIRST, t2.c1 ASC NULLS FIRST LIMIT round(2.2) OFFSET 2;
  c1  | c1 
 -----+----
+ 100 | 10
  100 | 30
- 100 | 40
 (2 rows)
 
 -- Limit as NULL, no LIMIT/OFFSET pushdown.
 EXPLAIN (COSTS false, VERBOSE)
 SELECT t1.c1, t2.c1
   FROM f_test_tbl1 t1 JOIN f_test_tbl2 t2 ON (t1.c8 = t2.c1) ORDER BY t1.c1 ASC NULLS FIRST, t2.c1 ASC NULLS FIRST LIMIT NULL OFFSET 1;
-                                               QUERY PLAN                                                
----------------------------------------------------------------------------------------------------------
- Limit
+                                            QUERY PLAN                                             
+---------------------------------------------------------------------------------------------------
+ Foreign Scan
    Output: t1.c1, t2.c1
-   ->  Foreign Scan
-         Output: t1.c1, t2.c1
-         Foreign Namespace: (mongo_fdw_regress.test_tbl1 t1) INNER JOIN (mongo_fdw_regress.test_tbl2 t2)
-(5 rows)
+   Foreign Namespace: (mongo_fdw_regress.test_tbl1 t1) INNER JOIN (mongo_fdw_regress.test_tbl2 t2)
+(3 rows)
 
 SELECT t1.c1, t2.c1
   FROM f_test_tbl1 t1 JOIN f_test_tbl2 t2 ON (t1.c8 = t2.c1) ORDER BY t1.c1 ASC NULLS FIRST, t2.c1 ASC NULLS FIRST LIMIT NULL OFFSET 1;
@@ -1412,14 +1402,12 @@ SELECT t1.c1, t2.c1
 EXPLAIN (COSTS false, VERBOSE)
 SELECT t1.c1, t2.c1
   FROM f_test_tbl1 t1 JOIN f_test_tbl2 t2 ON (t1.c8 = t2.c1) ORDER BY t1.c1 ASC NULLS FIRST, t2.c1 ASC NULLS FIRST LIMIT ALL OFFSET 1;
-                                               QUERY PLAN                                                
----------------------------------------------------------------------------------------------------------
- Limit
+                                            QUERY PLAN                                             
+---------------------------------------------------------------------------------------------------
+ Foreign Scan
    Output: t1.c1, t2.c1
-   ->  Foreign Scan
-         Output: t1.c1, t2.c1
-         Foreign Namespace: (mongo_fdw_regress.test_tbl1 t1) INNER JOIN (mongo_fdw_regress.test_tbl2 t2)
-(5 rows)
+   Foreign Namespace: (mongo_fdw_regress.test_tbl1 t1) INNER JOIN (mongo_fdw_regress.test_tbl2 t2)
+(3 rows)
 
 SELECT t1.c1, t2.c1
   FROM f_test_tbl1 t1 JOIN f_test_tbl2 t2 ON (t1.c8 = t2.c1) ORDER BY t1.c1 ASC NULLS FIRST, t2.c1 ASC NULLS FIRST LIMIT ALL OFFSET 1;
@@ -1444,14 +1432,12 @@ SELECT t1.c1, t2.c1
 EXPLAIN (COSTS false, VERBOSE)
 SELECT t1.c1, t2.c1
   FROM f_test_tbl1 t1 JOIN f_test_tbl2 t2 ON (TRUE) ORDER BY t1.c1 ASC NULLS FIRST, t2.c1 ASC NULLS FIRST LIMIT 3 OFFSET NULL;
-                                               QUERY PLAN                                                
----------------------------------------------------------------------------------------------------------
- Limit
+                                            QUERY PLAN                                             
+---------------------------------------------------------------------------------------------------
+ Foreign Scan
    Output: t1.c1, t2.c1
-   ->  Foreign Scan
-         Output: t1.c1, t2.c1
-         Foreign Namespace: (mongo_fdw_regress.test_tbl1 t1) INNER JOIN (mongo_fdw_regress.test_tbl2 t2)
-(5 rows)
+   Foreign Namespace: (mongo_fdw_regress.test_tbl1 t1) INNER JOIN (mongo_fdw_regress.test_tbl2 t2)
+(3 rows)
 
 SELECT t1.c1, t2.c1
   FROM f_test_tbl1 t1 JOIN f_test_tbl2 t2 ON (TRUE) ORDER BY t1.c1 ASC NULLS FIRST, t2.c1 ASC NULLS FIRST LIMIT 3 OFFSET NULL;
@@ -1521,7 +1507,7 @@ SELECT t1.c1, t2.c1
 ---------------------------------------------------------------------------------------------------------
  Limit
    Output: t1.c1, t2.c1
-   InitPlan 1 (returns $0)
+   InitPlan 1
      ->  Foreign Scan
            Output: (count(*))
            Foreign Namespace: Aggregate on (mongo_fdw_regress.test_tbl1 f_test_tbl1)
@@ -1560,10 +1546,10 @@ SELECT t1.c1, t2.c2
    Sort Key: t1.c1
    ->  Append
          ->  Foreign Scan
-               Output: t1.c1, t2.c2
+               Output: t1_1.c1, t2_1.c2
                Foreign Namespace: (mongo_fdw_regress.test1 t1) INNER JOIN (mongo_fdw_regress.test3 t2)
          ->  Foreign Scan
-               Output: t1_1.c1, t2_1.c2
+               Output: t1_2.c1, t2_2.c2
                Foreign Namespace: (mongo_fdw_regress.test2 t1) INNER JOIN (mongo_fdw_regress.test4 t2)
 (10 rows)
 
@@ -1593,26 +1579,26 @@ SELECT t1.c1, t2.c2, t3.c2
    Sort Key: t1.c1
    ->  Append
          ->  Hash Join
-               Output: t1.c1, t2.c2, t3.c2
-               Hash Cond: (t1.c1 = t3.c1)
-               ->  Foreign Scan
-                     Output: t1.c1, t2.c2
-                     Foreign Namespace: (mongo_fdw_regress.test1 t1) INNER JOIN (mongo_fdw_regress.test3 t2)
-               ->  Hash
-                     Output: t3.c2, t3.c1
-                     ->  Foreign Scan on public.ftprt1_p1 t3
-                           Output: t3.c2, t3.c1
-                           Foreign Namespace: mongo_fdw_regress.test1
-         ->  Hash Join
                Output: t1_1.c1, t2_1.c2, t3_1.c2
                Hash Cond: (t1_1.c1 = t3_1.c1)
                ->  Foreign Scan
                      Output: t1_1.c1, t2_1.c2
-                     Foreign Namespace: (mongo_fdw_regress.test2 t1) INNER JOIN (mongo_fdw_regress.test4 t2)
+                     Foreign Namespace: (mongo_fdw_regress.test1 t1) INNER JOIN (mongo_fdw_regress.test3 t2)
                ->  Hash
                      Output: t3_1.c2, t3_1.c1
-                     ->  Foreign Scan on public.ftprt1_p2 t3_1
+                     ->  Foreign Scan on public.ftprt1_p1 t3_1
                            Output: t3_1.c2, t3_1.c1
+                           Foreign Namespace: mongo_fdw_regress.test1
+         ->  Hash Join
+               Output: t1_2.c1, t2_2.c2, t3_2.c2
+               Hash Cond: (t1_2.c1 = t3_2.c1)
+               ->  Foreign Scan
+                     Output: t1_2.c1, t2_2.c2
+                     Foreign Namespace: (mongo_fdw_regress.test2 t1) INNER JOIN (mongo_fdw_regress.test4 t2)
+               ->  Hash
+                     Output: t3_2.c2, t3_2.c1
+                     ->  Foreign Scan on public.ftprt1_p2 t3_2
+                           Output: t3_2.c2, t3_2.c1
                            Foreign Namespace: mongo_fdw_regress.test2
 (26 rows)
 
@@ -1644,10 +1630,10 @@ SELECT t1.c1, t1.c2
    Sort Key: t1.c1, t1.c2
    ->  Append
          ->  Foreign Scan
-               Output: t1.c1, t1.c2
+               Output: t1_1.c1, t1_1.c2
                Foreign Namespace: (mongo_fdw_regress.test1 t1) INNER JOIN (mongo_fdw_regress.test3 t2)
          ->  Foreign Scan
-               Output: t1_1.c1, t1_1.c2
+               Output: t1_2.c1, t1_2.c2
                Foreign Namespace: (mongo_fdw_regress.test2 t1) INNER JOIN (mongo_fdw_regress.test4 t2)
 (10 rows)
 
@@ -1669,35 +1655,45 @@ SELECT t1.c1, t1.phv, t2.c2, t2.phv
   FROM (SELECT 't1_phv' phv, * FROM fprt1 WHERE c1 % 2 = 0) t1 LEFT JOIN
     (SELECT 't2_phv' phv, * FROM fprt2 WHERE c2 % 2 = 0) t2 ON (t1.c1 = t2.c2)
   ORDER BY t1.c1, t2.c2;
-                                     QUERY PLAN                                     
-------------------------------------------------------------------------------------
- Sort
-   Output: ftprt1_p1.c1, 't1_phv'::text, ftprt2_p1.c2, ('t2_phv'::text)
-   Sort Key: ftprt1_p1.c1, ftprt2_p1.c2
-   ->  Append
-         ->  Hash Left Join
-               Output: ftprt1_p1.c1, 't1_phv'::text, ftprt2_p1.c2, ('t2_phv'::text)
-               Hash Cond: (ftprt1_p1.c1 = ftprt2_p1.c2)
-               ->  Foreign Scan on public.ftprt1_p1
-                     Output: ftprt1_p1.c1
-                     Foreign Namespace: mongo_fdw_regress.test1
-               ->  Hash
-                     Output: ftprt2_p1.c2, ('t2_phv'::text)
-                     ->  Foreign Scan on public.ftprt2_p1
-                           Output: ftprt2_p1.c2, 't2_phv'::text
+                                   QUERY PLAN                                   
+--------------------------------------------------------------------------------
+ Incremental Sort
+   Output: fprt1.c1, 't1_phv'::text, fprt2.c2, ('t2_phv'::text)
+   Sort Key: fprt1.c1, fprt2.c2
+   Presorted Key: fprt1.c1
+   ->  Merge Append
+         Sort Key: fprt1.c1
+         ->  Merge Left Join
+               Output: fprt1_1.c1, 't1_phv'::text, fprt2_1.c2, ('t2_phv'::text)
+               Merge Cond: (fprt1_1.c1 = fprt2_1.c2)
+               ->  Sort
+                     Output: fprt1_1.c1
+                     Sort Key: fprt1_1.c1
+                     ->  Foreign Scan on public.ftprt1_p1 fprt1_1
+                           Output: fprt1_1.c1
+                           Foreign Namespace: mongo_fdw_regress.test1
+               ->  Sort
+                     Output: fprt2_1.c2, ('t2_phv'::text)
+                     Sort Key: fprt2_1.c2
+                     ->  Foreign Scan on public.ftprt2_p1 fprt2_1
+                           Output: fprt2_1.c2, 't2_phv'::text
                            Foreign Namespace: mongo_fdw_regress.test3
-         ->  Hash Left Join
-               Output: ftprt1_p2.c1, 't1_phv'::text, ftprt2_p2.c2, ('t2_phv'::text)
-               Hash Cond: (ftprt1_p2.c1 = ftprt2_p2.c2)
-               ->  Foreign Scan on public.ftprt1_p2
-                     Output: ftprt1_p2.c1
-                     Foreign Namespace: mongo_fdw_regress.test2
-               ->  Hash
-                     Output: ftprt2_p2.c2, ('t2_phv'::text)
-                     ->  Foreign Scan on public.ftprt2_p2
-                           Output: ftprt2_p2.c2, 't2_phv'::text
+         ->  Merge Left Join
+               Output: fprt1_2.c1, 't1_phv'::text, fprt2_2.c2, ('t2_phv'::text)
+               Merge Cond: (fprt1_2.c1 = fprt2_2.c2)
+               ->  Sort
+                     Output: fprt1_2.c1
+                     Sort Key: fprt1_2.c1
+                     ->  Foreign Scan on public.ftprt1_p2 fprt1_2
+                           Output: fprt1_2.c1
+                           Foreign Namespace: mongo_fdw_regress.test2
+               ->  Sort
+                     Output: fprt2_2.c2, ('t2_phv'::text)
+                     Sort Key: fprt2_2.c2
+                     ->  Foreign Scan on public.ftprt2_p2 fprt2_2
+                           Output: fprt2_2.c2, 't2_phv'::text
                            Foreign Namespace: mongo_fdw_regress.test4
-(26 rows)
+(36 rows)
 
 SELECT t1.c1, t1.phv, t2.c2, t2.phv
   FROM (SELECT 't1_phv' phv, * FROM fprt1 WHERE c1 % 2 = 0) t1 LEFT JOIN
@@ -1723,21 +1719,26 @@ SELECT d.c1, d.c2, e.c1, e.c2, e.c6, e.c8
   FROM f_test_tbl2 d JOIN f_test_tbl1 e ON d.c1 = e.c8 ORDER BY 1, 3;
                              QUERY PLAN                             
 --------------------------------------------------------------------
- Sort
+ Incremental Sort
    Output: d.c1, d.c2, e.c1, e.c2, e.c6, e.c8
    Sort Key: d.c1, e.c1
-   ->  Hash Join
+   Presorted Key: d.c1
+   ->  Merge Join
          Output: d.c1, d.c2, e.c1, e.c2, e.c6, e.c8
-         Hash Cond: (d.c1 = e.c8)
-         ->  Foreign Scan on public.f_test_tbl2 d
-               Output: d._id, d.c1, d.c2, d.c3
-               Foreign Namespace: mongo_fdw_regress.test_tbl2
-         ->  Hash
+         Merge Cond: (d.c1 = e.c8)
+         ->  Sort
+               Output: d.c1, d.c2
+               Sort Key: d.c1
+               ->  Foreign Scan on public.f_test_tbl2 d
+                     Output: d.c1, d.c2
+                     Foreign Namespace: mongo_fdw_regress.test_tbl2
+         ->  Sort
                Output: e.c1, e.c2, e.c6, e.c8
+               Sort Key: e.c8
                ->  Foreign Scan on public.f_test_tbl1 e
                      Output: e.c1, e.c2, e.c6, e.c8
                      Foreign Namespace: mongo_fdw_regress.test_tbl1
-(14 rows)
+(19 rows)
 
 ALTER SERVER mongo_server OPTIONS (SET enable_join_pushdown 'true');
 EXPLAIN (COSTS FALSE, VERBOSE)
@@ -1760,21 +1761,26 @@ SELECT d.c1, d.c2, e.c1, e.c2, e.c6, e.c8
   FROM f_test_tbl2 d JOIN f_test_tbl1 e ON d.c1 = e.c8 ORDER BY 1, 3;
                              QUERY PLAN                             
 --------------------------------------------------------------------
- Sort
+ Incremental Sort
    Output: d.c1, d.c2, e.c1, e.c2, e.c6, e.c8
    Sort Key: d.c1, e.c1
-   ->  Hash Join
+   Presorted Key: d.c1
+   ->  Merge Join
          Output: d.c1, d.c2, e.c1, e.c2, e.c6, e.c8
-         Hash Cond: (d.c1 = e.c8)
-         ->  Foreign Scan on public.f_test_tbl2 d
-               Output: d._id, d.c1, d.c2, d.c3
-               Foreign Namespace: mongo_fdw_regress.test_tbl2
-         ->  Hash
+         Merge Cond: (d.c1 = e.c8)
+         ->  Sort
+               Output: d.c1, d.c2
+               Sort Key: d.c1
+               ->  Foreign Scan on public.f_test_tbl2 d
+                     Output: d.c1, d.c2
+                     Foreign Namespace: mongo_fdw_regress.test_tbl2
+         ->  Sort
                Output: e.c1, e.c2, e.c6, e.c8
+               Sort Key: e.c8
                ->  Foreign Scan on public.f_test_tbl1 e
                      Output: e.c1, e.c2, e.c6, e.c8
                      Foreign Namespace: mongo_fdw_regress.test_tbl1
-(14 rows)
+(19 rows)
 
 ALTER FOREIGN TABLE f_test_tbl2 OPTIONS (SET enable_join_pushdown 'true');
 EXPLAIN (COSTS FALSE, VERBOSE)
@@ -1797,21 +1803,26 @@ SELECT d.c1, d.c2, e.c1, e.c2, e.c6, e.c8
   FROM f_test_tbl2 d JOIN f_test_tbl1 e ON d.c1 = e.c8 ORDER BY 1, 3;
                              QUERY PLAN                             
 --------------------------------------------------------------------
- Sort
+ Incremental Sort
    Output: d.c1, d.c2, e.c1, e.c2, e.c6, e.c8
    Sort Key: d.c1, e.c1
-   ->  Hash Join
+   Presorted Key: d.c1
+   ->  Merge Join
          Output: d.c1, d.c2, e.c1, e.c2, e.c6, e.c8
-         Hash Cond: (d.c1 = e.c8)
-         ->  Foreign Scan on public.f_test_tbl2 d
-               Output: d._id, d.c1, d.c2, d.c3
-               Foreign Namespace: mongo_fdw_regress.test_tbl2
-         ->  Hash
+         Merge Cond: (d.c1 = e.c8)
+         ->  Sort
+               Output: d.c1, d.c2
+               Sort Key: d.c1
+               ->  Foreign Scan on public.f_test_tbl2 d
+                     Output: d.c1, d.c2
+                     Foreign Namespace: mongo_fdw_regress.test_tbl2
+         ->  Sort
                Output: e.c1, e.c2, e.c6, e.c8
+               Sort Key: e.c8
                ->  Foreign Scan on public.f_test_tbl1 e
                      Output: e.c1, e.c2, e.c6, e.c8
                      Foreign Namespace: mongo_fdw_regress.test_tbl1
-(14 rows)
+(19 rows)
 
 ALTER FOREIGN TABLE f_test_tbl1 OPTIONS (SET enable_join_pushdown 'true');
 EXPLAIN (COSTS FALSE, VERBOSE)
@@ -1836,21 +1847,26 @@ SELECT d.c1, d.c2, e.c1, e.c2, e.c6, e.c8
   FROM f_test_tbl2 d JOIN f_test_tbl1 e ON d.c1 = e.c8 ORDER BY 1, 3;
                              QUERY PLAN                             
 --------------------------------------------------------------------
- Sort
+ Incremental Sort
    Output: d.c1, d.c2, e.c1, e.c2, e.c6, e.c8
    Sort Key: d.c1, e.c1
-   ->  Hash Join
+   Presorted Key: d.c1
+   ->  Merge Join
          Output: d.c1, d.c2, e.c1, e.c2, e.c6, e.c8
-         Hash Cond: (d.c1 = e.c8)
-         ->  Foreign Scan on public.f_test_tbl2 d
-               Output: d._id, d.c1, d.c2, d.c3
-               Foreign Namespace: mongo_fdw_regress.test_tbl2
-         ->  Hash
+         Merge Cond: (d.c1 = e.c8)
+         ->  Sort
+               Output: d.c1, d.c2
+               Sort Key: d.c1
+               ->  Foreign Scan on public.f_test_tbl2 d
+                     Output: d.c1, d.c2
+                     Foreign Namespace: mongo_fdw_regress.test_tbl2
+         ->  Sort
                Output: e.c1, e.c2, e.c6, e.c8
+               Sort Key: e.c8
                ->  Foreign Scan on public.f_test_tbl1 e
                      Output: e.c1, e.c2, e.c6, e.c8
                      Foreign Namespace: mongo_fdw_regress.test_tbl1
-(14 rows)
+(19 rows)
 
 EXPLAIN (COSTS FALSE, VERBOSE)
 SELECT t1.c1, t2.c2
@@ -2053,17 +2069,21 @@ SELECT d.c1, d.c2, e.c1, e.c2, e.c6, e.c8
   FROM f_test_tbl2 d LEFT OUTER JOIN f_test_tbl1 e ON (d.c1 = e.c8 AND e.c4 > d.c1 AND e.c2 < d.c3) ORDER BY 1 ASC NULLS FIRST, 3 ASC NULLS FIRST;
                              QUERY PLAN                             
 --------------------------------------------------------------------
- Sort
+ Incremental Sort
    Sort Key: d.c1 NULLS FIRST, e.c1 NULLS FIRST
-   ->  Hash Left Join
-         Hash Cond: (d.c1 = e.c8)
+   Presorted Key: d.c1
+   ->  Merge Left Join
+         Merge Cond: (d.c1 = e.c8)
          Join Filter: ((e.c4 > d.c1) AND (e.c2 < d.c3))
-         ->  Foreign Scan on f_test_tbl2 d
-               Foreign Namespace: mongo_fdw_regress.test_tbl2
-         ->  Hash
+         ->  Sort
+               Sort Key: d.c1 NULLS FIRST
+               ->  Foreign Scan on f_test_tbl2 d
+                     Foreign Namespace: mongo_fdw_regress.test_tbl2
+         ->  Sort
+               Sort Key: e.c8 NULLS FIRST
                ->  Foreign Scan on f_test_tbl1 e
                      Foreign Namespace: mongo_fdw_regress.test_tbl1
-(10 rows)
+(14 rows)
 
 SELECT d.c1, d.c2, e.c1, e.c2, e.c6, e.c8
   FROM f_test_tbl2 d LEFT OUTER JOIN f_test_tbl1 e ON (d.c1 = e.c8 AND e.c4 > d.c1 AND e.c2 < d.c3) ORDER BY 1 ASC NULLS FIRST, 3 ASC NULLS FIRST;

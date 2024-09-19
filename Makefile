@@ -29,6 +29,7 @@ DATA = mongo_fdw--1.0.sql  mongo_fdw--1.1.sql mongo_fdw--1.0--1.1.sql
 REGRESS = server_options connection_validation dml select pushdown join_pushdown aggregate_pushdown limit_offset_pushdown
 REGRESS_OPTS = --load-extension=$(EXTENSION)
 
+ifdef USE_PGXS
 #
 # Users need to specify their Postgres installation path through pg_config. For
 # example: /usr/local/pgsql/bin/pg_config or /usr/lib/postgresql/9.1/bin/pg_config
@@ -42,6 +43,13 @@ ifndef MAJORVERSION
     MAJORVERSION := $(basename $(VERSION))
 endif
 
-ifeq (,$(findstring $(MAJORVERSION), 11 12 13 14 15 16))
-    $(error PostgreSQL 11, 12, 13, 14, 15, or 16 is required to compile this extension)
+ifeq (,$(findstring $(MAJORVERSION), 12 13 14 15 16 17))
+    $(error PostgreSQL 12, 13, 14, 15, 16, or 17 is required to compile this extension)
+endif
+
+else
+subdir = contrib/mongo_fdw
+top_builddir = ../..
+include $(top_builddir)/src/Makefile.global
+include $(top_srcdir)/contrib/contrib-global.mk
 endif

@@ -14,7 +14,7 @@ CREATE USER MAPPING FOR public SERVER mongo_server;
 SELECT mongo_fdw_version();
  mongo_fdw_version 
 -------------------
-             50501
+             50502
 (1 row)
 
 -- Create foreign tables
