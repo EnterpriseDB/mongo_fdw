@@ -7,7 +7,7 @@ are two ways. You can either use script `autogen.sh` or you can manually
 perform all required steps listed.
 
 ### Notes about new MongoDB C Driver support
-The current implementation is based on the driver version 1.17.3 of MongoDB.
+The current implementation is based on the driver version 1.30.2 of MongoDB.
 
 ## Installation using script
 Number of manual steps needs to be performed to compile and install required
@@ -30,13 +30,13 @@ driver accordingly.
 
 ## Steps for manual installation
 ### mongo-c
-1. Download and extract source code of mongoc driver for version `1.17.3`
+1. Download and extract source code of mongoc driver for version `1.30.2`
 
 	```sh
-	wget https://github.com/mongodb/mongo-c-driver/releases/download/1.17.3/mongo-c-driver-1.17.3.tar.gz
-	tar xzf mongo-c-driver-1.17.3.tar.gz
+	wget https://github.com/mongodb/mongo-c-driver/releases/download/1.30.2/mongo-c-driver-1.30.2.tar.gz
+	tar xzf mongo-c-driver-1.30.2.tar.gz
 	rm -rf mongo-c-driver
-	mv mongo-c-driver-1.17.3 mongo-c-driver
+	mv mongo-c-driver-1.30.2 mongo-c-driver
 	cd mongo-c-driver
 	```
 
@@ -66,10 +66,10 @@ For more details on installation of mongo-c driver, you can refer [here][3].
 1. Download and extract source code
 
 	```sh
-	wget https://github.com/json-c/json-c/archive/json-c-0.15-20200726.tar.gz
-	tar -xzf json-c-0.15-20200726.tar.gz
-	rm -rf json-c
-	mv json-c-json-c-0.15-20200726/ json-c
+	wget https://github.com/json-c/json-c/archive/json-c-0.18-20240915.tar.gz
+	tar -xzf json-c-0.18-20240915.tar.gz
+    rm -rf json-c
+	mv json-c-json-c-0.18-20240915/ json-c
 	cd json-c
 	```
 
@@ -151,5 +151,5 @@ If you run into any issues, please [let us know][2].
 
 [1]: http://www.mongodb.com
 [2]: https://github.com/enterprisedb/mongo_fdw/issues/new
-[3]: http://mongoc.org/libmongoc/1.17.3/installing.html#configuring-the-build
-[4]: https://github.com/json-c/json-c/tree/json-c-0.15-20200726#build-instructions--
+[3]: https://www.mongodb.com/docs/languages/c/c-driver/current/install-from-source
+[4]: https://github.com/json-c/json-c/tree/json-c-0.18-20240915#build-instructions--

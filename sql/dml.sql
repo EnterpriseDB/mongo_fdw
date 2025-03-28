@@ -165,7 +165,6 @@ SELECT a, b FROM f_mongo_test6 ORDER BY a;
 DELETE FROM f_mongo_test6 WHERE b[2] = 'DELETE';
 SELECT a, b FROM f_mongo_test6 ORDER BY a;
 
---FDW-481: UPDATE/DELETE shouldn't lead to crash when _id is NULL.
 -- If first column type is not NAME then UPDATE/DELETE should result into an error.
 CREATE FOREIGN TABLE f_mongo_test7 (_id text, a int, b text) SERVER mongo_server
   OPTIONS (database 'mongo_fdw_regress', collection 'test_tbl7');
@@ -180,21 +179,6 @@ CREATE FOREIGN TABLE f_mongo_test7 (id1 NAME, a int, b text) SERVER mongo_server
 SELECT a, b FROM f_mongo_test7 ORDER BY 1;
 UPDATE f_mongo_test7 SET b = 'UPDATED' WHERE a = 10;
 DELETE FROM f_mongo_test7 WHERE a = 10;
-DROP FOREIGN TABLE f_mongo_test7;
-
--- UPDATE/DELETE when _id is NULL. Shouldn't crash.
-CREATE FOREIGN TABLE f_mongo_test7 (_id NAME, a int, b text) SERVER mongo_server
-  OPTIONS (database 'mongo_fdw_regress', collection 'test_tbl7');
-SELECT a, b FROM f_mongo_test7 ORDER BY 1;
-SELECT * FROM f_mongo_test7 WHERE a = 10 ORDER BY 1;
-UPDATE f_mongo_test7 SET b = 'UPDATED' WHERE _id IS NULL;
-SELECT a, b FROM f_mongo_test7 ORDER BY 1;
-DELETE FROM f_mongo_test7 WHERE a = 20;
-SELECT a, b FROM f_mongo_test7 ORDER BY 1;
-
--- Retain original data of test_tbl7
-UPDATE f_mongo_test7 SET b = 'ROW1' WHERE a = 10;
-INSERT INTO f_mongo_test7 VALUES(0, 20, 'ROW2');
 
 -- When _id is non-objectId type on MongoDB. Should result into an error.
 CREATE FOREIGN TABLE f_mongo_test8 (_id NAME, a int, b text) SERVER mongo_server

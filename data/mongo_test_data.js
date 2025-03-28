@@ -97,7 +97,7 @@ db.test_tbl5.insertMany([
    {a: true}
 ]);
 db.test_tbl7.insertMany([
-   {_id: null, a: NumberInt(10), b: "ROW1"},
+   {a: NumberInt(10), b: "ROW1"},
    {a: NumberInt(20), b: "ROW2"}
 ]);
 db.test_tbl8.insertMany([

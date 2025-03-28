@@ -646,7 +646,9 @@ mongoAggregateCount(MONGO_CONN *conn, const char *database,
 	BSON	   *command;
 	BSON	   *reply;
 	double		count = 0;
-	mongoc_cursor_t *cursor;
+	bson_error_t error;
+	bool		retval;
+	bson_iter_t it;
 
 	command = bsonCreate();
 	reply = bsonCreate();
@@ -654,24 +656,16 @@ mongoAggregateCount(MONGO_CONN *conn, const char *database,
 	if (b)						/* Not empty */
 		bsonAppendBson(command, "query", (BSON *) b);
 
-	cursor = mongoc_client_command(conn, database, MONGOC_QUERY_SLAVE_OK, 0, 1,
-								   0, command, NULL, NULL);
-	if (cursor)
-	{
-		BSON	   *doc;
-		bool		ret;
+	retval = mongoc_client_command_simple(conn, database, command, NULL, reply,
+										  &error);
+	if (!retval)
+		ereport(ERROR,
+				(errmsg("failed to get the document count"),
+				 errhint("Mongo error: \"%s\"", error.message)));
 
-		ret = mongoc_cursor_next(cursor, (const BSON **) &doc);
-		if (ret)
-		{
-			bson_iter_t it;
+	if (bson_iter_init_find(&it, reply, "n"))
+		count = bsonIterDouble(&it);
 
-			bson_copy_to(doc, reply);
-			if (bson_iter_init_find(&it, reply, "n"))
-				count = bsonIterDouble(&it);
-		}
-		mongoc_cursor_destroy(cursor);
-	}
 	bsonDestroy(reply);
 	bsonDestroy(command);
 
@@ -731,7 +725,7 @@ dumpJsonObject(StringInfo output, BSON_ITERATOR *iter)
 	bson_iter_document(iter, &len, &data);
 	if (bson_init_static(&bson, data, len))
 	{
-		char	   *json = bson_as_json(&bson, NULL);
+		char	   *json = bsonAsJson(&bson);
 
 		if (json != NULL)
 		{
@@ -753,7 +747,7 @@ dumpJsonArray(StringInfo output, BSON_ITERATOR *iter)
 	{
 		char	   *json;
 
-		if ((json = bson_array_as_json(&bson, NULL)))
+		if ((json = bson_array_as_legacy_extended_json(&bson, NULL)))
 		{
 			appendStringInfoString(output, json);
 			bson_free(json);
@@ -764,5 +758,5 @@ dumpJsonArray(StringInfo output, BSON_ITERATOR *iter)
 char *
 bsonAsJson(const BSON *bsonDocument)
 {
-	return bson_as_json(bsonDocument, NULL);
+	return bson_as_legacy_extended_json(bsonDocument, NULL);
 }
