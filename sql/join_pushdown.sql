@@ -573,10 +573,28 @@ SELECT d.c1, d.c2, e.c1, e.c2, e.c6, e.c8
 SELECT d.c1, d.c2, e.c1, e.c2, e.c6, e.c8
   FROM f_test_tbl2 d LEFT OUTER JOIN f_test_tbl1 e ON (d.c1 = e.c8 AND e.c4 > d.c1 AND e.c2 < d.c3) ORDER BY 1 ASC NULLS FIRST, 3 ASC NULLS FIRST;
 
+-- FDW-721: Fix ORDER BY pushdown on the column of inner relation
+CREATE FOREIGN TABLE fdw721_tbl1 (_id NAME, c1 INT, c2 INT)
+  SERVER mongo_server OPTIONS (database 'mongo_fdw_regress', collection 'tbl1');
+CREATE FOREIGN TABLE fdw721_tbl2 (_id NAME, c1 INT, c2 INT)
+  SERVER mongo_server OPTIONS (database 'mongo_fdw_regress', collection 'tbl2');
+
+INSERT INTO fdw721_tbl1 VALUES(0, 1, 1);
+INSERT INTO fdw721_tbl1 VALUES(0, 2, 2);
+INSERT INTO fdw721_tbl1 VALUES(0, 3, 3);
+INSERT INTO fdw721_tbl2 VALUES(0, 2, 4);
+INSERT INTO fdw721_tbl2 VALUES(0, 1, 5);
+INSERT INTO fdw721_tbl2 VALUES(0, 2, 6);
+
+SELECT t1.c1, t1.c2, t2.c1, t2.c2 FROM fdw721_tbl1 t1 LEFT JOIN fdw721_tbl2 t2
+  ON (t1.c1 = t2.c1) ORDER BY 4 ASC NULLS FIRST;
+
 DELETE FROM f_test_tbl1 WHERE c8 IS NULL;
 DELETE FROM f_test_tbl1 WHERE c8 = 60;
 DELETE FROM f_test_tbl2 WHERE c1 IS NULL;
 DELETE FROM f_test_tbl2 WHERE c1 = 50;
+DELETE FROM fdw721_tbl1;
+DELETE FROM fdw721_tbl2;
 DROP FOREIGN TABLE f_test_tbl1;
 DROP FOREIGN TABLE f_test_tbl2;
 DROP FOREIGN TABLE f_test_tbl3;
@@ -588,6 +606,8 @@ DROP FOREIGN TABLE  ftprt1_p1;
 DROP FOREIGN TABLE  ftprt1_p2;
 DROP FOREIGN TABLE  ftprt2_p1;
 DROP FOREIGN TABLE  ftprt2_p2;
+DROP FOREIGN TABLE  fdw721_tbl1;
+DROP FOREIGN TABLE  fdw721_tbl2;
 DROP TABLE IF EXISTS fprt1;
 DROP TABLE IF EXISTS fprt2;
 DROP USER MAPPING FOR public SERVER mongo_server1;

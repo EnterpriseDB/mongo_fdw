@@ -560,7 +560,7 @@ mongo_query_document(ForeignScanState *scanStateNode)
 				/*
 				 * In the case of upper rel, access the column by prefixing it
 				 * with "_id".  To access the column of the inner relation in
-				 * the join operation, use the prefix "Join_result" because
+				 * the join operation, use the prefix "Join_Result" because
 				 * direct access is not possible.  However, columns of the
 				 * simple relation and outer relation of the join can be
 				 * accessed directly.
@@ -572,7 +572,7 @@ mongo_query_document(ForeignScanState *scanStateNode)
 									is_asc_sort);
 				else if (!columnInfo->isOuter && fmstate->relType != BASE_REL)
 					bsonAppendInt32(&sort,
-									psprintf("Join_result.%s",
+									psprintf("Join_Result.%s",
 											 columnInfo->colName),
 									is_asc_sort);
 				else

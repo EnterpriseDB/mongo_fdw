@@ -79,22 +79,22 @@ SELECT d.c1, d.c2, e.c1, e.c2, e.c6, e.c8
   FROM f_test_tbl1 e LEFT OUTER JOIN f_test_tbl2 d ON e.c8 = d.c1 ORDER BY 1 ASC NULLS FIRST, 3 ASC NULLS FIRST;
  c1 |       c2       |  c1  |  c2   |   c6    | c8 
 ----+----------------+------+-------+---------+----
- 20 | ADMINISTRATION |  100 | EMP1  |   800.3 | 20
- 30 | SALES          |  200 | EMP2  |    1600 | 30
- 30 | SALES          |  300 | EMP3  |    1250 | 30
- 20 | ADMINISTRATION |  400 | EMP4  |    2975 | 20
- 30 | SALES          |  500 | EMP5  | 1250.23 | 30
- 30 | SALES          |  600 | EMP6  |    2850 | 30
- 10 | DEVELOPMENT    |  700 | EMP7  | 2450.34 | 10
- 20 | ADMINISTRATION |  800 | EMP8  |    3000 | 20
- 10 | DEVELOPMENT    |  900 | EMP9  |    5000 | 10
- 30 | SALES          | 1000 | EMP10 |    1500 | 30
- 20 | ADMINISTRATION | 1100 | EMP11 |    1100 | 20
- 30 | SALES          | 1200 | EMP12 |     950 | 30
- 20 | ADMINISTRATION | 1300 | EMP13 |    3000 | 20
- 10 | DEVELOPMENT    | 1400 | EMP14 |    1300 | 10
     |                | 1500 | EMP15 |     950 | 60
     |                | 1600 | EMP16 |         |   
+ 10 | DEVELOPMENT    |  700 | EMP7  | 2450.34 | 10
+ 10 | DEVELOPMENT    |  900 | EMP9  |    5000 | 10
+ 10 | DEVELOPMENT    | 1400 | EMP14 |    1300 | 10
+ 20 | ADMINISTRATION |  100 | EMP1  |   800.3 | 20
+ 20 | ADMINISTRATION |  400 | EMP4  |    2975 | 20
+ 20 | ADMINISTRATION |  800 | EMP8  |    3000 | 20
+ 20 | ADMINISTRATION | 1100 | EMP11 |    1100 | 20
+ 20 | ADMINISTRATION | 1300 | EMP13 |    3000 | 20
+ 30 | SALES          |  200 | EMP2  |    1600 | 30
+ 30 | SALES          |  300 | EMP3  |    1250 | 30
+ 30 | SALES          |  500 | EMP5  | 1250.23 | 30
+ 30 | SALES          |  600 | EMP6  |    2850 | 30
+ 30 | SALES          | 1000 | EMP10 |    1500 | 30
+ 30 | SALES          | 1200 | EMP12 |     950 | 30
 (16 rows)
 
 EXPLAIN (COSTS OFF)
@@ -242,22 +242,22 @@ SELECT d.c1, d.c2, e.c1, e.c2, e.c6, e.c8
   FROM f_test_tbl2 d RIGHT OUTER JOIN f_test_tbl1 e ON d.c1 = e.c8 ORDER BY 1 ASC NULLS FIRST, 3 ASC NULLS FIRST;
  c1 |       c2       |  c1  |  c2   |   c6    | c8 
 ----+----------------+------+-------+---------+----
- 20 | ADMINISTRATION |  100 | EMP1  |   800.3 | 20
- 30 | SALES          |  200 | EMP2  |    1600 | 30
- 30 | SALES          |  300 | EMP3  |    1250 | 30
- 20 | ADMINISTRATION |  400 | EMP4  |    2975 | 20
- 30 | SALES          |  500 | EMP5  | 1250.23 | 30
- 30 | SALES          |  600 | EMP6  |    2850 | 30
- 10 | DEVELOPMENT    |  700 | EMP7  | 2450.34 | 10
- 20 | ADMINISTRATION |  800 | EMP8  |    3000 | 20
- 10 | DEVELOPMENT    |  900 | EMP9  |    5000 | 10
- 30 | SALES          | 1000 | EMP10 |    1500 | 30
- 20 | ADMINISTRATION | 1100 | EMP11 |    1100 | 20
- 30 | SALES          | 1200 | EMP12 |     950 | 30
- 20 | ADMINISTRATION | 1300 | EMP13 |    3000 | 20
- 10 | DEVELOPMENT    | 1400 | EMP14 |    1300 | 10
     |                | 1500 | EMP15 |     950 | 60
     |                | 1600 | EMP16 |         |   
+ 10 | DEVELOPMENT    |  700 | EMP7  | 2450.34 | 10
+ 10 | DEVELOPMENT    |  900 | EMP9  |    5000 | 10
+ 10 | DEVELOPMENT    | 1400 | EMP14 |    1300 | 10
+ 20 | ADMINISTRATION |  100 | EMP1  |   800.3 | 20
+ 20 | ADMINISTRATION |  400 | EMP4  |    2975 | 20
+ 20 | ADMINISTRATION |  800 | EMP8  |    3000 | 20
+ 20 | ADMINISTRATION | 1100 | EMP11 |    1100 | 20
+ 20 | ADMINISTRATION | 1300 | EMP13 |    3000 | 20
+ 30 | SALES          |  200 | EMP2  |    1600 | 30
+ 30 | SALES          |  300 | EMP3  |    1250 | 30
+ 30 | SALES          |  500 | EMP5  | 1250.23 | 30
+ 30 | SALES          |  600 | EMP6  |    2850 | 30
+ 30 | SALES          | 1000 | EMP10 |    1500 | 30
+ 30 | SALES          | 1200 | EMP12 |     950 | 30
 (16 rows)
 
 EXPLAIN (COSTS OFF)
@@ -381,7 +381,6 @@ SELECT d.c1, d.c2, e.c1, e.c2, e.c6, e.c8
   FROM f_test_tbl2 d RIGHT OUTER JOIN f_test_tbl1 e ON (d.c1 = 20 AND e.c2 = 'EMP1') ORDER BY 1 ASC NULLS FIRST, 3 ASC NULLS FIRST;
  c1 |       c2       |  c1  |  c2   |   c6    | c8 
 ----+----------------+------+-------+---------+----
- 20 | ADMINISTRATION |  100 | EMP1  |   800.3 | 20
     |                |  200 | EMP2  |    1600 | 30
     |                |  300 | EMP3  |    1250 | 30
     |                |  400 | EMP4  |    2975 | 20
@@ -397,6 +396,7 @@ SELECT d.c1, d.c2, e.c1, e.c2, e.c6, e.c8
     |                | 1400 | EMP14 |    1300 | 10
     |                | 1500 | EMP15 |     950 | 60
     |                | 1600 | EMP16 |         |   
+ 20 | ADMINISTRATION |  100 | EMP1  |   800.3 | 20
 (16 rows)
 
 -- Push INNER JOIN.
@@ -779,9 +779,9 @@ SELECT d.c1, d.c2, e.c1, e.c2, e.c6, e.c8
   FROM f_test_tbl2 d LEFT OUTER JOIN f_test_tbl1 e ON d.c1 = e.c8 WHERE d.c1 = 10 ORDER BY 1 DESC NULLS LAST, 3 DESC NULLS LAST;
  c1 |     c2      |  c1  |  c2   |   c6    | c8 
 ----+-------------+------+-------+---------+----
- 10 | DEVELOPMENT |  700 | EMP7  | 2450.34 | 10
- 10 | DEVELOPMENT |  900 | EMP9  |    5000 | 10
  10 | DEVELOPMENT | 1400 | EMP14 |    1300 | 10
+ 10 | DEVELOPMENT |  900 | EMP9  |    5000 | 10
+ 10 | DEVELOPMENT |  700 | EMP7  | 2450.34 | 10
 (3 rows)
 
 EXPLAIN (COSTS OFF)
@@ -1364,7 +1364,7 @@ SELECT t1.c1, t2.c1
   FROM f_test_tbl1 t1 JOIN f_test_tbl2 t2 ON (TRUE) ORDER BY t1.c1 ASC NULLS FIRST, t2.c1 ASC NULLS FIRST LIMIT round(2.2) OFFSET 2;
  c1  | c1 
 -----+----
- 100 | 10
+ 100 | 20
  100 | 30
 (2 rows)
 
@@ -1443,9 +1443,9 @@ SELECT t1.c1, t2.c1
   FROM f_test_tbl1 t1 JOIN f_test_tbl2 t2 ON (TRUE) ORDER BY t1.c1 ASC NULLS FIRST, t2.c1 ASC NULLS FIRST LIMIT 3 OFFSET NULL;
  c1  | c1 
 -----+----
+ 100 |   
  100 | 10
  100 | 20
- 100 | 30
 (3 rows)
 
 -- Limit with -ve value. Shouldn't pushdown.
@@ -2103,10 +2103,33 @@ SELECT d.c1, d.c2, e.c1, e.c2, e.c6, e.c8
  50 | TESTING        |      |       |         |   
 (12 rows)
 
+-- FDW-721: Fix ORDER BY pushdown on the column of inner relation
+CREATE FOREIGN TABLE fdw721_tbl1 (_id NAME, c1 INT, c2 INT)
+  SERVER mongo_server OPTIONS (database 'mongo_fdw_regress', collection 'tbl1');
+CREATE FOREIGN TABLE fdw721_tbl2 (_id NAME, c1 INT, c2 INT)
+  SERVER mongo_server OPTIONS (database 'mongo_fdw_regress', collection 'tbl2');
+INSERT INTO fdw721_tbl1 VALUES(0, 1, 1);
+INSERT INTO fdw721_tbl1 VALUES(0, 2, 2);
+INSERT INTO fdw721_tbl1 VALUES(0, 3, 3);
+INSERT INTO fdw721_tbl2 VALUES(0, 2, 4);
+INSERT INTO fdw721_tbl2 VALUES(0, 1, 5);
+INSERT INTO fdw721_tbl2 VALUES(0, 2, 6);
+SELECT t1.c1, t1.c2, t2.c1, t2.c2 FROM fdw721_tbl1 t1 LEFT JOIN fdw721_tbl2 t2
+  ON (t1.c1 = t2.c1) ORDER BY 4 ASC NULLS FIRST;
+ c1 | c2 | c1 | c2 
+----+----+----+----
+  3 |  3 |    |   
+  2 |  2 |  2 |  4
+  1 |  1 |  1 |  5
+  2 |  2 |  2 |  6
+(4 rows)
+
 DELETE FROM f_test_tbl1 WHERE c8 IS NULL;
 DELETE FROM f_test_tbl1 WHERE c8 = 60;
 DELETE FROM f_test_tbl2 WHERE c1 IS NULL;
 DELETE FROM f_test_tbl2 WHERE c1 = 50;
+DELETE FROM fdw721_tbl1;
+DELETE FROM fdw721_tbl2;
 DROP FOREIGN TABLE f_test_tbl1;
 DROP FOREIGN TABLE f_test_tbl2;
 DROP FOREIGN TABLE f_test_tbl3;
@@ -2118,6 +2141,8 @@ DROP FOREIGN TABLE  ftprt1_p1;
 DROP FOREIGN TABLE  ftprt1_p2;
 DROP FOREIGN TABLE  ftprt2_p1;
 DROP FOREIGN TABLE  ftprt2_p2;
+DROP FOREIGN TABLE  fdw721_tbl1;
+DROP FOREIGN TABLE  fdw721_tbl2;
 DROP TABLE IF EXISTS fprt1;
 DROP TABLE IF EXISTS fprt2;
 DROP USER MAPPING FOR public SERVER mongo_server1;
