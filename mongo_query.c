@@ -4,7 +4,7 @@
  * 		FDW query handling for mongo_fdw
  *
  * Portions Copyright (c) 2012-2014, PostgreSQL Global Development Group
- * Portions Copyright (c) 2004-2024, EnterpriseDB Corporation.
+ * Portions Copyright (c) 2004-2025, EnterpriseDB Corporation.
  * Portions Copyright (c) 2012–2014 Citus Data, Inc.
  *
  * IDENTIFICATION
@@ -197,18 +197,17 @@ mongo_query_document(ForeignScanState *scanStateNode)
 	BSON		root_pipeline;
 	BSON		match_stage;
 	int			root_index = 0;
-	List	   *joinclauses;
+	List	   *joinclauses = NIL;
 	List	   *colnum_list;
 	List	   *colname_list = NIL;
 	List	   *isouter_list = NIL;
 	List	   *rti_list;
 	List	   *pathkey_list;
 	List	   *is_ascsort_list;
-	char	   *inner_relname;
-	char	   *outer_relname;
+	char	   *inner_relname = NULL;
+	char	   *outer_relname = NULL;
 	HTAB	   *columnInfoHash;
-	int			jointype;
-	int			natts;
+	int			jointype = 0;
 	bool		has_limit;
 
 	/* Retrieve data passed by planning phase */
@@ -217,10 +216,16 @@ mongo_query_document(ForeignScanState *scanStateNode)
 	rti_list = list_nth(PrivateList, mongoFdwPrivateJoinClauseRtiList);
 	isouter_list = list_nth(PrivateList, mongoFdwPrivateJoinClauseIsOuterList);
 
-	/* Length should be same for all lists of column information */
-	natts = list_length(colname_list);
-	Assert(natts == list_length(colnum_list) && natts == list_length(rti_list)
-		   && natts == list_length(isouter_list));
+#ifdef USE_ASSERT_CHECKING
+	{
+		/* Length should be same for all lists of column information */
+		int		natts = list_length(colname_list);
+
+		Assert(natts == list_length(colnum_list) &&
+			   natts == list_length(rti_list) &&
+			   natts == list_length(isouter_list));
+	}
+#endif
 
 	/* Store information in the hash-table */
 	columnInfoHash = column_info_hash(colname_list, colnum_list, rti_list,
@@ -309,13 +314,8 @@ mongo_query_document(ForeignScanState *scanStateNode)
 			 */
 			if (is_outer && strcmp(colname, "*") != 0)
 			{
-				/*
-				 * Add prefix "v_" to column name to form variable name.  Need
-				 * to prefix with any lowercase letter because variable names
-				 * must begin with only a lowercase ASCII letter or a
-				 * non-ASCII character.
-				 */
-				char	   *varname = psprintf("v_%s", colname);
+				char	   *varname = psprintf("%s",
+											   get_varname_for_outer_col(colname));
 				char	   *field = psprintf("$%s", colname);
 
 				bsonAppendUTF8(&let_exprs, varname, field);
@@ -998,7 +998,7 @@ mongo_get_column_list(PlannerInfo *root, RelOptInfo *foreignrel,
 	ListCell   *lc;
 	RelOptInfo *scanrel;
 	MongoFdwRelationInfo *fpinfo = (MongoFdwRelationInfo *) foreignrel->fdw_private;
-	MongoFdwRelationInfo *ofpinfo;
+	MongoFdwRelationInfo *ofpinfo = NULL;
 
 	scanrel = IS_UPPER_REL(foreignrel) ? fpinfo->outerrel : foreignrel;
 
@@ -1811,3 +1811,44 @@ mongo_append_unique_var(List *varlist, Var *var)
 	return lappend(varlist, var);
 }
 #endif
+
+/*
+ * get_varname_for_outer_col
+ * 		Form variable name from outer relation column name.
+ */
+char *
+get_varname_for_outer_col(const char *str)
+{
+	static char	result[66];
+
+	/*
+	 * Add prefix "v_" to column name to form variable name.  Need to prefix
+	 * with any lowercase letter because variable names must begin with only a
+	 * lowercase ASCII letter or a non-ASCII character.
+	 */
+	sprintf(result, "v_%s", str);
+
+	/*
+	 * Also, replace occurences of dot (".") in the variable name with
+	 * underscore ("_"), because special characters other than "_" are NOT
+	 * allowed.
+	 */
+	mongo_replace_char(result + 2, '.', '_');
+
+	return result;
+}
+
+/*
+ * mongo_replace_char
+ * 		Find and replace given character from the string.
+ */
+void
+mongo_replace_char(char *str, char find, char replace)
+{
+	int			i;
+	int			len = strlen(str);
+
+	for (i = 0; i < len; i++)
+		if (str[i] == find)
+			str[i] = replace;
+}

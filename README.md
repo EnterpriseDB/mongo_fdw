@@ -5,9 +5,7 @@ This PostgreSQL extension implements a Foreign Data Wrapper (FDW) for
 [MongoDB][1].
 
 Please note that this version of mongo_fdw works with PostgreSQL and EDB
-Postgres Advanced Server 12, 13, 14, 15 and 16.
-
-<img src="https://upload.wikimedia.org/wikipedia/commons/2/29/Postgresql_elephant.svg" align="center" height="100" alt="PostgreSQL"/>	+	<img src="https://www.tutorialsteacher.com/Content/images/home/mongodb.svg" align="center" height="100" alt="MongoDB"/>
+Postgres Advanced Server 12, 13, 14, 15, 16 and 17.
 
 Contents
 --------
@@ -17,13 +15,12 @@ Contents
 3. [Installation](#installation)
 4. [Usage](#usage)
 5. [Functions](#functions)
-6. [Identifier case handling](#identifier-case-handling)
-7. [Generated columns](#generated-columns)
-8. [Character set handling](#character-set-handling)
-9. [Examples](#examples)
-10. [Limitations](#limitations)
-11. [Contributing and testing](#contributing-and-testing)
-12. [Useful links](#useful-links)
+6. [Examples](#examples)
+7. [Limitations](#limitations)
+8. [Contributing](#contributing)
+9. [Support](#support)
+10. [Useful links](#useful-links)
+11. [License](#license)
 
 Features
 --------
@@ -248,13 +245,6 @@ because MongoDB is schemaless.
 `mongo_fdw` don't implements the foreign data wrapper `TRUNCATE` API, available
 from PostgreSQL 14, because MongoDB is schemaless.
 
-Functions
----------
-
-As well as the standard `mongo_fdw_handler()` and `mongo_fdw_validator()`
-functions, `mongo_fdw` provides the following user-callable utility functions:
-
-**Yet not described!**.
 
 Identifier case handling
 ------------------------
@@ -273,24 +263,20 @@ columns (PostgreSQL 12+).
 
 **Behaviour with generated columns yet not tested and not described**.
 
-Note that while `mongo_fdw` will `INSERT` or `UPDATE` the generated column value
-in MongoDB, there is nothing to stop the value being modified within MongoDB,
-and hence no guarantee that in subsequent `SELECT` operations the column will
-still contain the expected generated value. This limitation also applies to
-`postgres_fdw`.
+Functions
+---------
 
-For more details on generated columns see:
+As well as the standard `mongo_fdw_handler()` and `mongo_fdw_validator()`
+functions, `mongo_fdw` provides the following user-callable utility functions:
 
-- [Generated Columns](https://www.postgresql.org/docs/current/ddl-generated-columns.html)
-- [CREATE FOREIGN TABLE](https://www.postgresql.org/docs/current/sql-createforeigntable.html)
+- **mongo_fdw_version()**
+  Returns the version number as an integer.
 
 Character set handling
 ----------------------
 
 `BSON` in MongoDB can only be encoded in `UTF-8`. Also `UTF-8` is recommended and
 de-facto most popular PostgreSQL server encoding.
-
-Encodings mapping between PostgreSQL and MongoDB **yet not described**.
 
 Examples
 --------
@@ -489,6 +475,15 @@ However, make sure to set the `MONGO_HOST`, `MONGO_PORT`, `MONGO_USER_NAME`,
 and `MONGO_PWD` environment variables correctly. The default settings can
 be found in the `mongodb_init.sh` script.
 
+Support
+-------
+This project will be modified to maintain compatibility with new
+PostgreSQL and EDB Postgres Advanced Server releases.
+
+If you need commercial support, please contact the EnterpriseDB sales
+team, or check whether your existing PostgreSQL support provider can
+also support `mongo_fdw`.
+
 Useful links
 ------------
 
@@ -515,19 +510,10 @@ Reference FDW realization, `postgres_fdw`
  - https://wiki.postgresql.org/wiki/Fdw
  - https://pgxn.org/tag/fdw/
 
-Support
--------
-This project will be modified to maintain compatibility with new
-PostgreSQL and EDB Postgres Advanced Server releases.
-
-If you need commercial support, please contact the EnterpriseDB sales
-team, or check whether your existing PostgreSQL support provider can
-also support `mongo_fdw`.
-
 
 License
 -------
-Portions Copyright (c) 2004-2024, EnterpriseDB Corporation.
+Portions Copyright (c) 2004-2025, EnterpriseDB Corporation.
 Portions Copyright © 2012–2014 Citus Data, Inc.
 
 This program is free software: you can redistribute it and/or modify it

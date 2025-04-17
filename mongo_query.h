@@ -4,7 +4,7 @@
  * 		FDW query handling for mongo_fdw
  *
  * Portions Copyright (c) 2012-2014, PostgreSQL Global Development Group
- * Portions Copyright (c) 2004-2024, EnterpriseDB Corporation.
+ * Portions Copyright (c) 2004-2025, EnterpriseDB Corporation.
  * Portions Copyright (c) 2012–2014 Citus Data, Inc.
  *
  * IDENTIFICATION
@@ -144,5 +144,7 @@ extern void mongo_append_expr(Expr *node, BSON *child_doc,
 extern void append_param_value(BSON *queryDocument, const char *keyName,
 							   Param *paramNode,
 							   ForeignScanState *scanStateNode);
+extern char *get_varname_for_outer_col(const char *str);
+extern void mongo_replace_char(char* str, char find, char replace);
 
 #endif							/* MONGO_QUERY_H */

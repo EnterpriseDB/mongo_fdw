@@ -47,6 +47,10 @@ CREATE FOREIGN TABLE f_test_tbl6 (_id NAME, a INTEGER)
   SERVER mongo_server OPTIONS (database 'mongo_fdw_regress', collection 'test_tbl5');
 CREATE FOREIGN TABLE f_test_tbl7 (_id NAME, a INTEGER)
   SERVER mongo_server OPTIONS (database 'mongo_fdw_regress', collection 'test_tbl4');
+CREATE FOREIGN TABLE testlog (_id NAME, log VARCHAR, "logMeta.logMac" VARCHAR, "logMeta.nestMore.level" INTEGER)
+  SERVER mongo_server OPTIONS (database 'mongo_fdw_regress', collection 'testlog');
+CREATE FOREIGN TABLE testdevice (_id NAME, name VARCHAR, mac VARCHAR, level INTEGER)
+  SERVER mongo_server OPTIONS (database 'mongo_fdw_regress', collection 'testdevice');
 
 SET datestyle TO ISO;
 
@@ -356,6 +360,12 @@ SELECT fdw529_test_param_where();
 -- This should not crash
 SELECT fdw529_test_param_where();
 
+-- FDW-669: Fix issue join pushdown doesn't return a result for join condition
+-- on sub-column. This has been fixed by omitting a dot (".") from variables
+-- used (declared by $let field) to form the MongoDB query pipeline.
+SELECT * FROM testlog t INNER JOIN testdevice d
+  ON d.level = t."logMeta.nestMore.level";
+
 -- Cleanup
 DELETE FROM f_mongo_test WHERE a != 0;
 DROP TABLE l_test_tbl1;
@@ -382,6 +392,8 @@ DROP FOREIGN TABLE f_test_tbl4;
 DROP FOREIGN TABLE f_test_tbl5;
 DROP FOREIGN TABLE f_test_tbl6;
 DROP FOREIGN TABLE f_test_tbl7;
+DROP FOREIGN TABLE testlog;
+DROP FOREIGN TABLE testdevice;
 DROP USER MAPPING FOR public SERVER mongo_server;
 DROP SERVER mongo_server;
 DROP EXTENSION mongo_fdw;

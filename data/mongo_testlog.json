@@ -1,0 +1,14 @@
+[
+{
+  "_id": {
+    "$oid": "658040214898199d6e0173d0"
+  },
+  "log": "hello log",
+  "logMeta": {
+    "logMac": "001122334455",
+    "nestMore": {
+        "level": 3
+    }
+  }
+}
+]

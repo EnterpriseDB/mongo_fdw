@@ -4,7 +4,7 @@
  * 		Foreign-data wrapper for remote MongoDB servers
  *
  * Portions Copyright (c) 2012-2014, PostgreSQL Global Development Group
- * Portions Copyright (c) 2004-2024, EnterpriseDB Corporation.
+ * Portions Copyright (c) 2004-2025, EnterpriseDB Corporation.
  * Portions Copyright (c) 2012–2014 Citus Data, Inc.
  *
  * IDENTIFICATION
@@ -56,9 +56,9 @@ PG_MODULE_MAGIC;
 
 /*
  * In PG 9.5.1 the number will be 90501,
- * our version is 5.5.1 so number will be 50501
+ * our version is 5.5.2 so number will be 50502
  */
-#define CODE_VERSION   50501
+#define CODE_VERSION   50502
 
 /*
  * Macro to check unsupported sorting methods.  Currently, ASC NULLS FIRST and
@@ -228,11 +228,20 @@ static List *mongo_get_useful_ecs_for_relation(PlannerInfo *root,
 											   RelOptInfo *rel);
 static List *mongo_get_useful_pathkeys_for_relation(PlannerInfo *root,
 													RelOptInfo *rel);
+#if PG_VERSION_NUM >= 170000
+static void mongo_add_paths_with_pathkeys(PlannerInfo *root,
+										  RelOptInfo *rel,
+										  Path *epq_path,
+										  Cost base_startup_cost,
+										  Cost base_total_cost,
+										  List *restrictlist);
+#else
 static void mongo_add_paths_with_pathkeys(PlannerInfo *root,
 										  RelOptInfo *rel,
 										  Path *epq_path,
 										  Cost base_startup_cost,
 										  Cost base_total_cost);
+#endif
 static EquivalenceMember *mongo_find_em_for_rel_target(PlannerInfo *root,
 													   EquivalenceClass *ec,
 													   RelOptInfo *rel);
@@ -487,8 +496,8 @@ mongoGetForeignPaths(PlannerInfo *root,
 {
 	Path	   *foreignPath;
 	MongoFdwOptions *options;
-	Cost		startupCost;
-	Cost		totalCost;
+	Cost		startupCost = 0;
+	Cost		totalCost = 0;
 
 	/* Fetch options */
 	options = mongo_get_options(foreigntableid);
@@ -564,6 +573,7 @@ mongoGetForeignPaths(PlannerInfo *root,
 	}
 
 	/* Create a foreign path node */
+#if PG_VERSION_NUM >= 170000
 	foreignPath = (Path *) create_foreignscan_path(root, baserel,
 												   NULL,	/* default pathtarget */
 												   baserel->rows,
@@ -572,13 +582,30 @@ mongoGetForeignPaths(PlannerInfo *root,
 												   NIL, /* no pathkeys */
 												   baserel->lateral_relids,
 												   NULL,	/* no extra plan */
-												   NULL);	/* no fdw_private data */
+												   NIL, /* no fdw_restrictinfo list */
+												   NIL);	/* no fdw_private data */
+#else
+	foreignPath = (Path *) create_foreignscan_path(root, baserel,
+												   NULL,	/* default pathtarget */
+												   baserel->rows,
+												   startupCost,
+												   totalCost,
+												   NIL, /* no pathkeys */
+												   baserel->lateral_relids,
+												   NULL,	/* no extra plan */
+												   NIL);	/* no fdw_private list */
+#endif
 
 	/* Add foreign path as the only possible path */
 	add_path(baserel, foreignPath);
 
 	/* Add paths with pathkeys */
+#if PG_VERSION_NUM >= 170000
+	mongo_add_paths_with_pathkeys(root, baserel, NULL, startupCost, totalCost,
+								  NIL);
+#else
 	mongo_add_paths_with_pathkeys(root, baserel, NULL, startupCost, totalCost);
+#endif
 }
 
 /*
@@ -612,7 +639,7 @@ mongoGetForeignPlan(PlannerInfo *root,
 	List	   *quals = NIL;
 	MongoFdwRelType mongofdwreltype;
 	MongoRelQualInfo *qual_info;
-	MongoFdwRelationInfo *ofpinfo;
+	MongoFdwRelationInfo *ofpinfo = NULL;
 	List	   *pathKeyList = NIL;
 	List	   *isAscSortList = NIL;
 	bool		has_final_sort = false;
@@ -2088,7 +2115,11 @@ fill_tuple_slot(const BSON *bsonDocument, const char *bsonDocumentKey,
 
 		str = bsonAsJson(bsonDocument);
 		result = cstring_to_text_with_len(str, strlen(str));
+#if PG_VERSION_NUM >= 170000
+		lex = makeJsonLexContext(NULL, result, false);
+#else
 		lex = makeJsonLexContext(result, false);
+#endif
 		pg_parse_json(lex, &nullSemAction);
 		columnValue = PointerGetDatum(result);
 
@@ -2146,7 +2177,7 @@ fill_tuple_slot(const BSON *bsonDocument, const char *bsonDocumentKey,
 		Oid			columnArrayTypeId = InvalidOid;
 		bool		compatibleTypes = false;
 		const char *bsonFullKey;
-		int32		attnum;
+		int32		attnum = 0;
 		bool		is_agg = false;
 
 		if (!strncmp(bsonKey, "AGG_RESULT_KEY", 5) && bsonType == BSON_TYPE_INT32)
@@ -2555,7 +2586,11 @@ column_value(BSON_ITERATOR *bsonIterator, Oid columnTypeId,
 				bsonToJsonStringValue(buffer, bsonIterator,
 									  BSON_TYPE_ARRAY == type);
 				result = cstring_to_text_with_len(buffer->data, buffer->len);
+#if PG_VERSION_NUM >= 170000
+				lex = makeJsonLexContext(NULL, result, false);
+#else
 				lex = makeJsonLexContext(result, false);
+#endif
 				pg_parse_json(lex, &nullSemAction);
 				columnValue = PointerGetDatum(result);
 			}
@@ -2964,6 +2999,7 @@ mongoGetForeignJoinPaths(PlannerInfo *root, RelOptInfo *joinrel,
 	 * Create a new join path and add it to the joinrel which represents a
 	 * join between foreign tables.
 	 */
+#if PG_VERSION_NUM >= 170000
 	joinpath = create_foreign_join_path(root,
 										joinrel,
 										NULL,
@@ -2973,14 +3009,32 @@ mongoGetForeignJoinPaths(PlannerInfo *root, RelOptInfo *joinrel,
 										NIL,	/* no pathkeys */
 										joinrel->lateral_relids,
 										epq_path,
-										NULL);	/* no fdw_private */
+										extra->restrictlist,
+										NIL);	/* no fdw_private */
+#else
+	joinpath = create_foreign_join_path(root,
+										joinrel,
+										NULL,
+										joinrel->rows,
+										startup_cost,
+										total_cost,
+										NIL,	/* no pathkeys */
+										joinrel->lateral_relids,
+										epq_path,
+										NIL);	/* no fdw_private */
+#endif
 
 	/* Add generated path into joinrel by add_path(). */
 	add_path(joinrel, (Path *) joinpath);
 
 	/* Add paths with pathkeys */
+#if PG_VERSION_NUM >= 170000
+	mongo_add_paths_with_pathkeys(root, joinrel, epq_path, startup_cost,
+								  total_cost, extra->restrictlist);
+#else
 	mongo_add_paths_with_pathkeys(root, joinrel, epq_path, startup_cost,
 								  total_cost);
+#endif
 
 	/* XXX Consider parameterized paths for the join relation */
 }
@@ -3574,6 +3628,18 @@ mongo_add_foreign_grouping_paths(PlannerInfo *root, RelOptInfo *input_rel,
 #endif
 
 	/* Create and add foreign path to the grouping relation. */
+#if PG_VERSION_NUM >= 170000
+	grouppath = create_foreign_upper_path(root,
+										  grouped_rel,
+										  grouped_rel->reltarget,
+										  num_groups,
+										  startup_cost,
+										  total_cost,
+										  NIL,	/* no pathkeys */
+										  NULL,
+										  NIL,	/* no fdw_restrictinfo list */
+										  NIL); /* no fdw_private */
+#else
 	grouppath = create_foreign_upper_path(root,
 										  grouped_rel,
 										  grouped_rel->reltarget,
@@ -3583,6 +3649,7 @@ mongo_add_foreign_grouping_paths(PlannerInfo *root, RelOptInfo *input_rel,
 										  NIL,	/* no pathkeys */
 										  NULL,
 										  NIL); /* no fdw_private */
+#endif
 
 	/* Add generated path into grouped_rel by add_path(). */
 	add_path(grouped_rel, (Path *) grouppath);
@@ -3861,10 +3928,17 @@ mongo_get_useful_pathkeys_for_relation(PlannerInfo *root, RelOptInfo *rel)
  * Pushing down query_pathkeys to the foreign server might let us avoid a
  * local sort.
  */
+#if PG_VERSION_NUM >= 170000
+static void
+mongo_add_paths_with_pathkeys(PlannerInfo *root, RelOptInfo *rel,
+							  Path *epq_path, Cost base_startup_cost,
+							  Cost base_total_cost, List *restrictlist)
+#else
 static void
 mongo_add_paths_with_pathkeys(PlannerInfo *root, RelOptInfo *rel,
 							  Path *epq_path, Cost base_startup_cost,
 							  Cost base_total_cost)
+#endif
 {
 	ListCell   *lc;
 	List	   *useful_pathkeys_list = NIL; /* List of all pathkeys */
@@ -3911,6 +3985,7 @@ mongo_add_paths_with_pathkeys(PlannerInfo *root, RelOptInfo *rel,
 								 -1.0);
 
 		if (IS_SIMPLE_REL(rel))
+#if PG_VERSION_NUM >= 170000
 			add_path(rel, (Path *)
 					 create_foreignscan_path(root, rel,
 											 NULL,
@@ -3920,8 +3995,22 @@ mongo_add_paths_with_pathkeys(PlannerInfo *root, RelOptInfo *rel,
 											 useful_pathkeys,
 											 rel->lateral_relids,
 											 sorted_epq_path,
-											 NIL));
+											 NIL,	/* no fdw_restrictinfo list */
+											 NIL));	/* no fdw_private list */
+#else
+			add_path(rel, (Path *)
+					 create_foreignscan_path(root, rel,
+											 NULL,
+											 rel->rows,
+											 startup_cost,
+											 total_cost,
+											 useful_pathkeys,
+											 rel->lateral_relids,
+											 sorted_epq_path,
+											 NIL));	/* no fdw_private list */
+#endif
 		else
+#if PG_VERSION_NUM >= 170000
 			add_path(rel, (Path *)
 					 create_foreign_join_path(root, rel,
 											  NULL,
@@ -3931,7 +4020,20 @@ mongo_add_paths_with_pathkeys(PlannerInfo *root, RelOptInfo *rel,
 											  useful_pathkeys,
 											  rel->lateral_relids,
 											  sorted_epq_path,
-											  NIL));
+											  restrictlist,
+											  NIL));	/* no fdw_private */
+#else
+			add_path(rel, (Path *)
+					 create_foreign_join_path(root, rel,
+											  NULL,
+											  rel->rows,
+											  startup_cost,
+											  total_cost,
+											  useful_pathkeys,
+											  rel->lateral_relids,
+											  sorted_epq_path,
+											  NIL));	/* no fdw_private */
+#endif
 	}
 }
 
@@ -4098,6 +4200,18 @@ mongo_add_foreign_ordered_paths(PlannerInfo *root, RelOptInfo *input_rel,
 	fdw_private = list_make2(makeInteger(true), makeInteger(false));
 
 	/* Create foreign ordering path */
+#if PG_VERSION_NUM >= 170000
+	ordered_path = create_foreign_upper_path(root,
+											 input_rel,
+											 root->upper_targets[UPPERREL_ORDERED],
+											 rows,
+											 startup_cost,
+											 total_cost,
+											 root->sort_pathkeys,
+											 NULL,	/* no extra plan */
+											 NIL,	/* no fdw_restrictinfo list */
+											 fdw_private);
+#else
 	ordered_path = create_foreign_upper_path(root,
 											 input_rel,
 											 root->upper_targets[UPPERREL_ORDERED],
@@ -4107,6 +4221,7 @@ mongo_add_foreign_ordered_paths(PlannerInfo *root, RelOptInfo *input_rel,
 											 root->sort_pathkeys,
 											 NULL,	/* no extra plan */
 											 fdw_private);
+#endif
 
 	/* and add it to the ordered_rel */
 	add_path(ordered_rel, (Path *) ordered_path);
@@ -4201,6 +4316,7 @@ mongo_add_foreign_final_paths(PlannerInfo *root, RelOptInfo *input_rel,
 				 * no-longer-needed outer plan (if any), which makes the
 				 * EXPLAIN output look cleaner
 				 */
+#if PG_VERSION_NUM >= 170000
 				final_path = create_foreign_upper_path(root,
 													   path->parent,
 													   path->pathtarget,
@@ -4209,7 +4325,19 @@ mongo_add_foreign_final_paths(PlannerInfo *root, RelOptInfo *input_rel,
 													   path->total_cost,
 													   path->pathkeys,
 													   NULL,	/* no extra plan */
-													   NULL);	/* no fdw_private */
+													   NIL,		/* no fdw_restrictinfo list */
+													   NIL);	/* no fdw_private */
+#else
+				final_path = create_foreign_upper_path(root,
+													   path->parent,
+													   path->pathtarget,
+													   path->rows,
+													   path->startup_cost,
+													   path->total_cost,
+													   path->pathkeys,
+													   NULL,	/* no extra plan */
+													   NIL);	/* no fdw_private */
+#endif
 
 				/* and add it to the final_rel */
 				add_path(final_rel, (Path *) final_path);
@@ -4324,6 +4452,18 @@ mongo_add_foreign_final_paths(PlannerInfo *root, RelOptInfo *input_rel,
 	 * Create foreign final path; this gets rid of a no-longer-needed outer
 	 * plan (if any), which makes the EXPLAIN output look cleaner
 	 */
+#if PG_VERSION_NUM >= 170000
+	final_path = create_foreign_upper_path(root,
+										   input_rel,
+										   root->upper_targets[UPPERREL_FINAL],
+										   rows,
+										   startup_cost,
+										   total_cost,
+										   pathkeys,
+										   NULL,	/* no extra plan */
+										   NIL,		/* no fdw_restrictinfo list */
+										   fdw_private);
+#else
 	final_path = create_foreign_upper_path(root,
 										   input_rel,
 										   root->upper_targets[UPPERREL_FINAL],
@@ -4333,6 +4473,7 @@ mongo_add_foreign_final_paths(PlannerInfo *root, RelOptInfo *input_rel,
 										   pathkeys,
 										   NULL,	/* no extra plan */
 										   fdw_private);
+#endif
 
 	/* and add it to the final_rel */
 	add_path(final_rel, (Path *) final_path);
