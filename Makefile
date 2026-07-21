@@ -1,4 +1,4 @@
-# mongo_fdw/Makefile
+# mongo_fdw/Makefile.meta
 #
 # Portions Copyright (c) 2004-2023, EnterpriseDB Corporation.
 # Portions Copyright © 2012–2014 Citus Data, Inc.
@@ -43,5 +43,5 @@ ifndef MAJORVERSION
 endif
 
 ifeq (,$(findstring $(MAJORVERSION), 11 12 13 14 15 16))
-    $(error PostgreSQL 11, 12, 13, 14, 15, or 16 is required to compile this extension)
+    $(error PostgreSQL 11, 12, 13, 14 15, or 16 is required to compile this extension)
 endif

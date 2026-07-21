@@ -248,9 +248,17 @@ mongoCursorCreate(MONGO_CONN *conn, char *database, char *collection, BSON *q)
 {
 	mongoc_collection_t *c;
 	MONGO_CURSOR *cur;
+  char* buffer = 0;
+    size_t size;
 	bson_error_t error;
 
 	c = mongoc_client_get_collection(conn, database, collection);
+    buffer = bson_as_json(q, &size);
+    if(size || buffer) {
+	ereport(WARNING, (errmsg("MCC: %s", buffer)));
+    }
+    bson_free(buffer);
+
 	cur = mongoc_collection_aggregate(c, MONGOC_QUERY_NONE, q, NULL, NULL);
 	mongoc_cursor_error(cur, &error);
 	if (!cur)
