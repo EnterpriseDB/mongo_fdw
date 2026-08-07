@@ -1,0 +1,244 @@
+name: Test mongo_fdw extension
+
+# Run this workflow every time a new commit pushed to your repository
+on: 
+  push:
+    #branches: '**'
+    #branches-ignore: 'master'
+
+  pull_request:
+    #branches: '**'
+    #branches-ignore: 'master'
+
+  workflow_dispatch:
+
+
+defaults:
+  run:
+    shell: bash
+
+
+jobs:
+  pr-test:
+    name: Test the extension
+    runs-on: ${{ matrix.os }}
+    env:
+      EXTENSION_NAME: mongo_fdw
+      EXTENSION_DB: moongodb_test
+      EXTENSION_BRANCH: master
+      EXTENSION_SUBDIRECTORY: ""
+      EXTENSION_TEST_QUERY: ""
+    strategy:
+      matrix:
+        # also test 'latest', eventually this will be upgraded to a newer version and might fail early
+        #os: [ubuntu-18.04, ubuntu-20.04, ubuntu-latest]
+        os: [ubuntu-latest]
+        postgresql: [9.6, 10, 11, 12, 13, 14]
+        #postgresql: [12]
+        include:
+          - postgresql: 9.6
+            repo: main
+          - postgresql: 10
+            repo: main
+          - postgresql: 11
+            repo: main
+          - postgresql: 12
+            repo: main
+          - postgresql: 13
+            repo: main
+          # development branch needs the version number, not "main"
+          # https://wiki.postgresql.org/wiki/Apt/FAQ#I_want_to_try_the_beta_version_of_the_next_PostgreSQL_release
+          - postgresql: 14
+            repo: 14
+      fail-fast: false
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Versions
+        run: echo "${{ matrix.os }} - ${{ matrix.postgresql }}"
+
+      - name: Calculate working directory
+        run: echo "::set-output name=PWD::$(realpath ./$EXTENSION_SUBDIRECTORY)"
+        id: pwd
+
+      - name: Working directory
+        run: echo "${{ steps.pwd.outputs.PWD }}"
+
+
+      # GitHub does only checkout the current branch
+      # in case this is a PR the check also needs $EXTENSION_BRANCH for the .control file
+      - name: get branch
+        run: git fetch --depth=5 origin $EXTENSION_BRANCH
+
+      - name: See the .control file
+        run: git show origin/$EXTENSION_BRANCH:$EXTENSION_SUBDIRECTORY$EXTENSION_NAME.control
+
+
+      # there might be PostgreSQL packages pre-installed, remove them
+      - name: Installed PostgreSQL packages
+        run: dpkg --list | grep postgresql
+
+      - name: Get list of PostgreSQL packages
+        run: echo "::set-output name=Packages::$(dpkg-query -f '${Package}\n' -W | grep ^postgresql | xargs)"
+        id: preinstalled_postgresql_packages
+
+      - name: Remove preinstalled PostgreSQL packages
+        run: sudo dpkg --purge ${{ steps.preinstalled_postgresql_packages.outputs.Packages }}
+
+
+      # verify result
+      - name: Installed PostgreSQL packages
+        run: dpkg --list | grep postgresql
+
+
+      # there might be MongoDB packages pre-installed, remove them
+      - name: Installed MongoDB packages
+        run: dpkg --list | grep mongodb
+
+      - name: Get list of MongoDB packages
+        run: echo "::set-output name=Packages::$(dpkg-query -f '${Package}\n' -W | grep mongodb | xargs)"
+        id: preinstalled_mongodb_packages
+
+      - name: Remove preinstalled MongoDB packages
+        run: sudo dpkg --purge ${{ steps.preinstalled_mongodb_packages.outputs.Packages }}
+
+
+      # install MongoDB
+      - name: Install MongoDB
+        run: sudo apt-get install -y mongodb-clients mongodb-server
+
+      - name: Setup MongoDB
+        run: ${{ steps.pwd.outputs.PWD }}/.github/resources/setup-mongodb.sh
+
+
+      # install build tools
+      - name: Install build-essential and other tools
+        run: sudo apt-get install -y build-essential ruby curl ca-certificates gnupg cmake libjson-c-dev
+
+      - name: Show cmake version
+        run: cmake --version
+
+      - name: Link cmake3
+        run: sudo sh -c 'if test \! -e /usr/bin/cmake3; then ln -s /usr/bin/cmake /usr/bin/cmake3; fi'
+
+      - name: Chown /usr/local
+        run: sudo chown runner. /usr/local /usr/local/*
+
+      # enable PostgreSQL APT repository
+      - name: Install GPG Key for PostgreSQL repository
+        run: curl https://www.postgresql.org/media/keys/ACCC4CF8.asc | sudo apt-key add -
+
+      - name: Install repository
+        run: sudo sh -c 'echo "deb http://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg ${{ matrix.repo }}" > /etc/apt/sources.list.d/pgdg.list'
+
+      - name: Update repository
+        run: sudo apt-get update
+
+      # install the requested version
+      - name: Install PostgreSQL
+        run: sudo apt-get install -y postgresql-${{ matrix.postgresql }} postgresql-server-dev-${{ matrix.postgresql }} postgresql-client-${{ matrix.postgresql }}
+
+      # debug output
+      - name: Path of pg_config
+        run: which pg_config
+
+      - name: pg_config output
+        run: pg_config
+
+      - name: Update pg_hba.conf
+        run: sudo bash -c "echo 'local all all trust' > /etc/postgresql/${{ matrix.postgresql }}/main/pg_hba.conf"
+
+      - name: Update pg_hba.conf
+        run: sudo bash -c "echo 'host all all 0/0 trust' >> /etc/postgresql/${{ matrix.postgresql }}/main/pg_hba.conf"
+
+      - name: Restart PostgreSQL
+        run: sudo service postgresql reload
+
+
+      # do the actual compilation
+      - name: Configure the extension
+        run: cd ${{ steps.pwd.outputs.PWD }} && ./autogen.sh --with-master
+
+      - name: Compile the extension
+        run: cd ${{ steps.pwd.outputs.PWD }} && make
+
+      # install extension
+      - name: Install the extension
+        run: cd ${{ steps.pwd.outputs.PWD }} && sudo make install
+
+
+      # some new libraries installed in /usr/local/lib
+      # linker cache needs to be updated, otherwise these libs are not found later on
+      - name: ldconfig
+        run: sudo ldconfig
+
+
+      # start testing
+
+      - name: Get current branch name
+        run: echo "::set-output name=Packages::$(git branch --show-current)"
+        id: current_branch
+
+      # in a PR this version might be different
+      - name: Get current extension version
+        run: echo "::set-output name=Version::$(cat $EXTENSION_SUBDIRECTORY$EXTENSION_NAME.control | grep default_version | sed 's/[^0-9\.]*//g')"
+        id: current_extension_version
+
+      # the version from the branch in $EXTENSION_BRANCH
+      - name: Get installed extension version
+        run: echo "::set-output name=Version::$(git show origin/$EXTENSION_BRANCH:$EXTENSION_SUBDIRECTORY$EXTENSION_NAME.control | grep default_version | sed 's/[^0-9\.]*//g')"
+        id: installed_extension_version
+
+      - name: Show versions
+        run: echo "${{ steps.installed_extension_version.outputs.Version }} - ${{ steps.current_extension_version.outputs.Version }}"
+
+      - name: Test current version string
+        run: exit 1
+        if: steps.current_extension_version.outputs.Version == ''
+
+      - name: Test installed version string
+        run: exit 1
+        if: steps.installed_extension_version.outputs.Version == ''
+
+      - name: Create test database
+        run: createdb -U postgres $EXTENSION_DB
+
+      # install the version from $EXTENSION_BRANCH
+      - name: Install extension in database
+        run: psql -U postgres -c "CREATE EXTENSION $EXTENSION_NAME VERSION '${{ steps.installed_extension_version.outputs.Version }}'" $EXTENSION_DB
+
+      - name: Get extension version installed in the database - Step 1
+        run: psql -U postgres -A -q -t -o /tmp/installed_version_step_1.txt -c "SELECT extversion FROM pg_catalog.pg_extension WHERE extname='$EXTENSION_NAME'" $EXTENSION_DB
+
+      - name: Get extension version installed in the database - Step 2
+        run: echo "::set-output name=Version::$(cat /tmp/installed_version_step_1.txt)"
+        id: installed_version_step_1
+
+      - name: Show installed version - after extension install
+        run: echo "${{ steps.installed_version_step_1.outputs.Version }}"
+
+      # if this is a PR, the version might be different - try an extension upgrade in this case
+      - name: Upgrade extension in database
+        run: psql -U postgres -c "ALTER EXTENSION $EXTENSION_NAME UPDATE TO '${{ steps.current_extension_version.outputs.Version }}'" $EXTENSION_DB
+        if: steps.installed_extension_version.outputs.Version != steps.current_extension_version.outputs.Version
+
+      - name: Get extension version installed in the database - Step 1
+        run: psql -U postgres -A -q -t -o /tmp/installed_version_step_2.txt -c "SELECT extversion FROM pg_catalog.pg_extension WHERE extname='$EXTENSION_NAME'" $EXTENSION_DB
+
+      - name: Get extension version installed in the database - Step 2
+        run: echo "::set-output name=Version::$(cat /tmp/installed_version_step_2.txt)"
+        id: installed_version_step_2
+
+      - name: Show installed version - after extension update
+        run: echo "${{ steps.installed_version_step_2.outputs.Version }}"
+
+      - name: Run test query
+        run: psql -U postgres -c "$EXTENSION_TEST_QUERY" $EXTENSION_DB
+        if: env.EXTENSION_TEST_QUERY != ''
+
+
+      # run FDW tests
+      - name: Run mondo_fdw tests
+        run: sudo -iu postgres ${{ steps.pwd.outputs.PWD }}/.github/resources/test-mongodb.sh
