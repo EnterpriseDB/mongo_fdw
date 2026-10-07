@@ -253,13 +253,19 @@ mongoCursorCreate(MONGO_CONN *conn, char *database, char *collection, BSON *q)
 
 	c = mongoc_client_get_collection(conn, database, collection);
 	cur = mongoc_collection_aggregate(c, MONGOC_QUERY_NONE, q, NULL, NULL);
-	mongoc_cursor_error(cur, &error);
-	if (!cur)
+	mongoc_collection_destroy(c);
+
+	/*
+	 * mongoc_collection_aggregate() always returns a cursor, even on failure;
+	 * errors are reported through mongoc_cursor_error().
+	 */
+	if (mongoc_cursor_error(cur, &error))
+	{
+		mongoc_cursor_destroy(cur);
 		ereport(ERROR,
 				(errmsg("failed to create cursor"),
 				 errhint("Mongo error: \"%s\"", error.message)));
-
-	mongoc_collection_destroy(c);
+	}
 
 	return cur;
 }

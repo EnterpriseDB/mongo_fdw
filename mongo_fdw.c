@@ -1415,6 +1415,16 @@ mongoIterateForeignScan(ForeignScanState *node)
 
 		ExecStoreVirtualTuple(tupleSlot);
 	}
+	else
+	{
+		bson_error_t error;
+
+		/* Distinguish end of data from a driver or server error. */
+		if (mongoc_cursor_error(mongoCursor, &error))
+			ereport(ERROR,
+					(errmsg("could not iterate over mongo collection"),
+					 errhint("Mongo driver error: %s", error.message)));
+	}
 
 	return tupleSlot;
 }
