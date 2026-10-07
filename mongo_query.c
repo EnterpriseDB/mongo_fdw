@@ -604,7 +604,24 @@ mongo_query_document(ForeignScanState *scanStateNode)
 		limit_value = (int64) intVal(list_nth(PrivateList,
 											  mongoFdwPrivateLimitCountList));
 
-		if (limit_value != -1)
+		if (limit_value == 0)
+		{
+			BSON		zero_stage;
+			BSON		zero_expr;
+
+			/*
+			 * MongoDB's $limit requires a positive value and errors out on
+			 * zero, whereas PostgreSQL accepts LIMIT 0 and returns no rows.
+			 * Use a stage that matches nothing to get the same result.
+			 */
+			bsonAppendStartObject(&root_pipeline, psprintf("%d", root_index++),
+								  &zero_stage);
+			bsonAppendStartObject(&zero_stage, "$match", &zero_expr);
+			bsonAppendBool(&zero_expr, "$expr", false);
+			bsonAppendFinishObject(&zero_stage, &zero_expr);
+			bsonAppendFinishObject(&root_pipeline, &zero_stage);
+		}
+		else if (limit_value != -1)
 		{
 			BSON		limit_stage;
 
