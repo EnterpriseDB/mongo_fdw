@@ -264,7 +264,7 @@ mongoCursorCreate(MONGO_CONN *conn, char *database, char *collection, BSON *q)
 		mongoc_cursor_destroy(cur);
 		ereport(ERROR,
 				(errmsg("failed to create cursor"),
-				 errhint("Mongo error: \"%s\"", error.message)));
+				 errhint("Mongo driver error: %s", error.message)));
 	}
 
 	return cur;
