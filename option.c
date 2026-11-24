@@ -194,31 +194,31 @@ mongo_get_options(Oid foreignTableId)
 		DefElem    *def = (DefElem *) lfirst(lc);
 
 		if (strcmp(def->defname, OPTION_NAME_READ_PREFERENCE) == 0)
-			options->readPreference = defGetString(def);
+			options->readPreference = pstrdup(defGetString(def));
 
 		else if (strcmp(def->defname, OPTION_NAME_AUTHENTICATION_DATABASE) == 0)
-			options->authenticationDatabase = defGetString(def);
+			options->authenticationDatabase = pstrdup(defGetString(def));
 
 		else if (strcmp(def->defname, OPTION_NAME_REPLICA_SET) == 0)
-			options->replicaSet = defGetString(def);
+			options->replicaSet = pstrdup(defGetString(def));
 
 		else if (strcmp(def->defname, OPTION_NAME_SSL) == 0)
 			options->ssl = defGetBoolean(def);
 
 		else if (strcmp(def->defname, OPTION_NAME_PEM_FILE) == 0)
-			options->pem_file = defGetString(def);
+			options->pem_file = pstrdup(defGetString(def));
 
 		else if (strcmp(def->defname, OPTION_NAME_PEM_PWD) == 0)
-			options->pem_pwd = defGetString(def);
+			options->pem_pwd = pstrdup(defGetString(def));
 
 		else if (strcmp(def->defname, OPTION_NAME_CA_FILE) == 0)
-			options->ca_file = defGetString(def);
+			options->ca_file = pstrdup(defGetString(def));
 
 		else if (strcmp(def->defname, OPTION_NAME_CA_DIR) == 0)
-			options->ca_dir = defGetString(def);
+			options->ca_dir = pstrdup(defGetString(def));
 
 		else if (strcmp(def->defname, OPTION_NAME_CRL_FILE) == 0)
-			options->crl_file = defGetString(def);
+			options->crl_file = pstrdup(defGetString(def));
 
 		else if (strcmp(def->defname, OPTION_NAME_WEAK_CERT) == 0)
 			options->weak_cert_validation = defGetBoolean(def);
@@ -249,10 +249,10 @@ mongo_get_options(Oid foreignTableId)
 			options->collectionName = pstrdup(defGetString(def));
 
 		else if (strcmp(def->defname, OPTION_NAME_USERNAME) == 0)
-			options->svr_username = defGetString(def);
+			options->svr_username = pstrdup(defGetString(def));
 
 		else if (strcmp(def->defname, OPTION_NAME_PASSWORD) == 0)
-			options->svr_password = defGetString(def);
+			options->svr_password = pstrdup(defGetString(def));
 
 		else if (strcmp(def->defname, OPTION_NAME_USE_REMOTE_ESTIMATE) == 0)
 			options->use_remote_estimate = defGetBoolean(def);
@@ -274,14 +274,76 @@ mongo_get_options(Oid foreignTableId)
 	return options;
 }
 
+/*
+ * mongo_free_options
+ *		Free memory allocated for MongoFdwOptions.
+ *
+ * Credentials (username, password, and PEM password) are securely zeroed
+ * using explicit_bzero() before being freed to prevent them from persisting
+ * in process memory. explicit_bzero() is guaranteed not to be optimized
+ * away by the compiler.
+ *
+ * All string fields are allocated via pstrdup() and must be freed here to
+ * avoid memory leaks and use-after-free issues with catalog memory.
+ */
 void
 mongo_free_options(MongoFdwOptions *options)
 {
 	if (options)
 	{
-		pfree(options->svr_address);
-		pfree(options->svr_database);
-		pfree(options->collectionName);
+		/* Securely zero credentials before freeing */
+		if (options->svr_username)
+		{
+			explicit_bzero(options->svr_username, strlen(options->svr_username));
+			pfree(options->svr_username);
+		}
+
+		if (options->svr_password)
+		{
+			explicit_bzero(options->svr_password, strlen(options->svr_password));
+			pfree(options->svr_password);
+		}
+
+		/* Securely zero PEM password (SSL private key password) */
+		if (options->pem_pwd)
+		{
+			explicit_bzero(options->pem_pwd, strlen(options->pem_pwd));
+			pfree(options->pem_pwd);
+		}
+
+		/* Free SSL configuration fields */
+		if (options->pem_file)
+			pfree(options->pem_file);
+
+		if (options->ca_file)
+			pfree(options->ca_file);
+
+		if (options->ca_dir)
+			pfree(options->ca_dir);
+
+		if (options->crl_file)
+			pfree(options->crl_file);
+
+		/* Free MongoDB connection configuration fields */
+		if (options->readPreference)
+			pfree(options->readPreference);
+
+		if (options->authenticationDatabase)
+			pfree(options->authenticationDatabase);
+
+		if (options->replicaSet)
+			pfree(options->replicaSet);
+
+		/* Free other allocated memory */
+		if (options->svr_address)
+			pfree(options->svr_address);
+
+		if (options->svr_database)
+			pfree(options->svr_database);
+
+		if (options->collectionName)
+			pfree(options->collectionName);
+
 		pfree(options);
 	}
 }
