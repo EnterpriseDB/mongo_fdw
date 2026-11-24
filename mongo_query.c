@@ -1199,7 +1199,10 @@ foreign_expr_walker(Node *node, foreign_glob_cxt *glob_cxt,
 				 */
 				collation = c->constcollid;
 				if (collation == InvalidOid ||
-					collation == DEFAULT_COLLATION_OID)
+					collation == DEFAULT_COLLATION_OID ||
+                    collation == C_COLLATION_OID ||
+                    collation == POSIX_COLLATION_OID
+                    )
 					state = FDW_COLLATE_NONE;
 				else
 					state = FDW_COLLATE_UNSAFE;
@@ -1222,7 +1225,10 @@ foreign_expr_walker(Node *node, foreign_glob_cxt *glob_cxt,
 				 */
 				collation = p->paramcollid;
 				if (collation == InvalidOid ||
-					collation == DEFAULT_COLLATION_OID)
+					collation == DEFAULT_COLLATION_OID ||
+                    collation == C_COLLATION_OID ||
+                    collation == POSIX_COLLATION_OID
+                    )
 					state = FDW_COLLATE_NONE;
 				else
 					state = FDW_COLLATE_UNSAFE;
@@ -1273,7 +1279,11 @@ foreign_expr_walker(Node *node, foreign_glob_cxt *glob_cxt,
 				else if (inner_cxt.state == FDW_COLLATE_SAFE &&
 						 collation == inner_cxt.collation)
 					state = FDW_COLLATE_SAFE;
-				else if (collation == DEFAULT_COLLATION_OID)
+				else if (
+                    collation == DEFAULT_COLLATION_OID ||
+                    collation == C_COLLATION_OID ||
+                    collation == POSIX_COLLATION_OID
+                )
 					state = FDW_COLLATE_NONE;
 				else
 					state = FDW_COLLATE_UNSAFE;
@@ -1300,7 +1310,11 @@ foreign_expr_walker(Node *node, foreign_glob_cxt *glob_cxt,
 				else if (inner_cxt.state == FDW_COLLATE_SAFE &&
 						 collation == inner_cxt.collation)
 					state = FDW_COLLATE_SAFE;
-				else if (collation == DEFAULT_COLLATION_OID)
+				else if (
+                    collation == DEFAULT_COLLATION_OID ||
+                    collation == C_COLLATION_OID ||
+                    collation == POSIX_COLLATION_OID
+                )
 					state = FDW_COLLATE_NONE;
 				else
 					state = FDW_COLLATE_UNSAFE;
@@ -1424,7 +1438,11 @@ foreign_expr_walker(Node *node, foreign_glob_cxt *glob_cxt,
 				else if (inner_cxt.state == FDW_COLLATE_SAFE &&
 						 collation == inner_cxt.collation)
 					state = FDW_COLLATE_SAFE;
-				else if (collation == DEFAULT_COLLATION_OID)
+				else if (
+                    collation == DEFAULT_COLLATION_OID ||
+                    collation == C_COLLATION_OID ||
+                    collation == POSIX_COLLATION_OID
+                    )
 					state = FDW_COLLATE_NONE;
 				else
 					state = FDW_COLLATE_UNSAFE;
@@ -1462,12 +1480,20 @@ foreign_expr_walker(Node *node, foreign_glob_cxt *glob_cxt,
 					/*
 					 * Non-default collation always beats default.
 					 */
-					if (outer_cxt->collation == DEFAULT_COLLATION_OID)
+					if (
+                        outer_cxt->collation == DEFAULT_COLLATION_OID ||
+                        outer_cxt->collation == C_COLLATION_OID ||
+                        outer_cxt->collation == POSIX_COLLATION_OID
+                        )
 					{
 						/* Override previous parent state */
 						outer_cxt->collation = collation;
 					}
-					else if (collation != DEFAULT_COLLATION_OID)
+					else if (
+                        collation != DEFAULT_COLLATION_OID &&
+                        collation != C_COLLATION_OID &&
+                        collation != POSIX_COLLATION_OID
+                        )
 					{
 						/*
 						 * Conflict; show state as indeterminate.  We don't
