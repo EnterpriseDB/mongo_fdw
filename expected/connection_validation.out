@@ -64,8 +64,21 @@ CREATE USER MAPPING FOR public SERVER mongo_server;
 -- Should able to insert the data
 INSERT INTO f_mongo_test VALUES ('0', 3, 'RECORD INSERTED');
 DELETE FROM f_mongo_test WHERE a = 3;
+-- ============================================================================
+-- FDW-753: ObjectId validation (prevent out-of-bounds reads)
+-- An ObjectId supplied through a JSON "$oid" field is converted with
+-- bson_oid_init_from_string(), which reads 24 characters with no bounds
+-- check.  A shorter or non-hexadecimal value must be rejected with a clear
+-- error during document construction, before anything is sent to MongoDB.
+-- ============================================================================
+CREATE FOREIGN TABLE f_mongo_oid_json (_id name, j json)
+  SERVER mongo_server OPTIONS (database 'mongo_fdw_regress', collection 'mongo_test');
+-- Too-short / non-hex $oid must error (raised before any write to MongoDB).
+INSERT INTO f_mongo_oid_json (j) VALUES ('{"$oid": "abc"}');
+ERROR:  invalid MongoDB ObjectId value
 -- Cleanup
 DROP FOREIGN TABLE f_mongo_test;
+DROP FOREIGN TABLE f_mongo_oid_json;
 DROP USER MAPPING FOR public SERVER mongo_server;
 DROP SERVER mongo_server;
 DROP EXTENSION mongo_fdw;

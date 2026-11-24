@@ -569,6 +569,19 @@ bsonIterSubIter(BSON_ITERATOR *it, BSON_ITERATOR *sub)
 void
 bsonOidFromString(bson_oid_t *o, char *str)
 {
+	/*
+	 * bson_oid_init_from_string() (via the inlined unsafe variant it calls)
+	 * unconditionally reads 24 characters from the input with no bounds
+	 * checking.  Reject anything that is not a valid 24-character hexadecimal
+	 * ObjectId first, so that a shorter or malformed value cannot cause an
+	 * out-of-bounds read.
+	 */
+	if (str == NULL || !bson_oid_is_valid(str, strlen(str)))
+		ereport(ERROR,
+				(errcode(ERRCODE_INVALID_TEXT_REPRESENTATION),
+				 errmsg("invalid MongoDB ObjectId value"),
+				 errdetail("An ObjectId must be a 24-character hexadecimal string.")));
+
 	bson_oid_init_from_string(o, str);
 }
 

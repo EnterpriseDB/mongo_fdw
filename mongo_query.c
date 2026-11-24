@@ -822,6 +822,19 @@ append_mongo_value(BSON *queryDocument, const char *keyName, Datum value,
 				{
 					bson_oid_t	oid;
 
+					/*
+					 * A MongoDB ObjectId is exactly 12 bytes and
+					 * bson_oid_init_from_data() copies that many bytes
+					 * unconditionally.  Reject any bytea of a different length
+					 * to avoid reading past the end of the value.
+					 */
+					if (len != (int) sizeof(oid.bytes))
+						ereport(ERROR,
+								(errcode(ERRCODE_INVALID_PARAMETER_VALUE),
+								 errmsg("invalid bytea value for \"_id\" column"),
+								 errdetail("A MongoDB ObjectId must be exactly %d bytes, but the given value is %d bytes.",
+										   (int) sizeof(oid.bytes), len)));
+
 					bson_oid_init_from_data(&oid, (const uint8_t *) data);
 					status = bsonAppendOid(queryDocument, keyName, &oid);
 				}
