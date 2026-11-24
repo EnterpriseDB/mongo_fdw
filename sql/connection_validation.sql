@@ -536,13 +536,13 @@ DO $$
 BEGIN
   BEGIN
     PERFORM a, b FROM f_mongo_test LIMIT 1;
-    RAISE NOTICE 'TEST 11h PASS: Valid hostname "localhost" accepted (query succeeded)';
+    RAISE NOTICE 'TEST 11h PASS: Valid hostname "localhost" accepted';
   EXCEPTION
     WHEN OTHERS THEN
       IF SQLERRM LIKE '%invalid server address%' THEN
         RAISE NOTICE 'TEST 11h FAIL: Valid hostname rejected: %', SQLERRM;
       ELSE
-        RAISE NOTICE 'TEST 11h PASS: Valid hostname accepted (connection error expected): %', SQLERRM;
+        RAISE NOTICE 'TEST 11h PASS: Valid hostname "localhost" accepted';
       END IF;
   END;
 END;
@@ -555,13 +555,13 @@ DO $$
 BEGIN
   BEGIN
     PERFORM a, b FROM f_mongo_test LIMIT 1;
-    RAISE NOTICE 'TEST 11h PASS: Valid IPv4 "127.0.0.1" accepted (query succeeded)';
+    RAISE NOTICE 'TEST 11h PASS: Valid IPv4 "127.0.0.1" accepted';
   EXCEPTION
     WHEN OTHERS THEN
       IF SQLERRM LIKE '%invalid server address%' THEN
         RAISE NOTICE 'TEST 11h FAIL: Valid IPv4 rejected: %', SQLERRM;
       ELSE
-        RAISE NOTICE 'TEST 11h PASS: Valid IPv4 accepted (connection error expected): %', SQLERRM;
+        RAISE NOTICE 'TEST 11h PASS: Valid IPv4 "127.0.0.1" accepted';
       END IF;
   END;
 END;
@@ -574,13 +574,13 @@ DO $$
 BEGIN
   BEGIN
     PERFORM a, b FROM f_mongo_test LIMIT 1;
-    RAISE NOTICE 'TEST 11h PASS: Valid hostname with hyphens accepted (query succeeded)';
+    RAISE NOTICE 'TEST 11h PASS: Valid hostname with hyphens accepted';
   EXCEPTION
     WHEN OTHERS THEN
       IF SQLERRM LIKE '%invalid server address%' THEN
         RAISE NOTICE 'TEST 11h FAIL: Valid hostname with hyphens rejected: %', SQLERRM;
       ELSE
-        RAISE NOTICE 'TEST 11h PASS: Valid hostname with hyphens accepted (connection error expected): %', SQLERRM;
+        RAISE NOTICE 'TEST 11h PASS: Valid hostname with hyphens accepted';
       END IF;
   END;
 END;
