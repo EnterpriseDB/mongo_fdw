@@ -20,139 +20,160 @@
 
 #define ITER_TYPE(i) ((bson_type_t) * ((i)->raw + (i)->type))
 
+static const char *mongo_validate_uri_component(const char *component,
+												const char *field_name);
+static const char *mongo_validate_read_preference(const char *pref);
+static const char *mongo_validate_hostname(const char *address);
+
+
 /*
  * mongoConnect
  *		Connect to MongoDB server using Host/ip and Port number.
+ *
+ * Uses URI builder API to avoid injection vulnerabilities.
  */
 MONGO_CONN *
 mongoConnect(MongoFdwOptions *opt)
 {
-	MONGO_CONN *client;
-	char	   *uri;
+	MONGO_CONN *client = NULL;
+	mongoc_uri_t *uri = NULL;
+	bson_error_t error;
+	char	   *base_uri = NULL;
+	bool		auth_enabled = false;
+	const char *error_msg;
 
-	if (opt->svr_username && opt->svr_password)
-	{
-		if (opt->authenticationDatabase)
-		{
-			if (opt->replicaSet)
-			{
-				if (opt->readPreference)
-					uri = bson_strdup_printf("mongodb://%s:%s@%s:%hu/%s?readPreference=%s&ssl=%s&authSource=%s&replicaSet=%s",
-											 opt->svr_username,
-											 opt->svr_password,
-											 opt->svr_address, opt->svr_port,
-											 opt->svr_database,
-											 opt->readPreference,
-											 opt->ssl ? "true" : "false",
-											 opt->authenticationDatabase,
-											 opt->replicaSet);
-				else
-					uri = bson_strdup_printf("mongodb://%s:%s@%s:%hu/%s?ssl=%s&authSource=%s&replicaSet=%s",
-											 opt->svr_username,
-											 opt->svr_password,
-											 opt->svr_address, opt->svr_port,
-											 opt->svr_database,
-											 opt->ssl ? "true" : "false",
-											 opt->authenticationDatabase,
-											 opt->replicaSet);
-			}
-			else if (opt->readPreference)
-				uri = bson_strdup_printf("mongodb://%s:%s@%s:%hu/%s?readPreference=%s&ssl=%s&authSource=%s",
-										 opt->svr_username, opt->svr_password,
-										 opt->svr_address, opt->svr_port,
-										 opt->svr_database,
-										 opt->readPreference,
-										 opt->ssl ? "true" : "false",
-										 opt->authenticationDatabase);
-			else
-				uri = bson_strdup_printf("mongodb://%s:%s@%s:%hu/%s?ssl=%s&authSource=%s",
-										 opt->svr_username, opt->svr_password,
-										 opt->svr_address, opt->svr_port,
-										 opt->svr_database,
-										 opt->ssl ? "true" : "false",
-										 opt->authenticationDatabase);
-		}
-		else if (opt->replicaSet)
-		{
-			if (opt->readPreference)
-				uri = bson_strdup_printf("mongodb://%s:%s@%s:%hu/%s?readPreference=%s&ssl=%s&replicaSet=%s",
-										 opt->svr_username, opt->svr_password,
-										 opt->svr_address, opt->svr_port,
-										 opt->svr_database,
-										 opt->readPreference,
-										 opt->ssl ? "true" : "false",
-										 opt->replicaSet);
-			else
-				uri = bson_strdup_printf("mongodb://%s:%s@%s:%hu/%s?ssl=%s&replicaSet=%s",
-										 opt->svr_username, opt->svr_password,
-										 opt->svr_address, opt->svr_port,
-										 opt->svr_database,
-										 opt->ssl ? "true" : "false",
-										 opt->replicaSet);
-		}
-		else if (opt->readPreference)
-			uri = bson_strdup_printf("mongodb://%s:%s@%s:%hu/%s?readPreference=%s&ssl=%s",
-									 opt->svr_username, opt->svr_password,
-									 opt->svr_address, opt->svr_port,
-									 opt->svr_database, opt->readPreference,
-									 opt->ssl ? "true" : "false");
-		else
-			uri = bson_strdup_printf("mongodb://%s:%s@%s:%hu/%s?ssl=%s",
-									 opt->svr_username, opt->svr_password,
-									 opt->svr_address,
-									 opt->svr_port, opt->svr_database,
-									 opt->ssl ? "true" : "false");
-	}
-	else if (opt->replicaSet)
+	/*
+	 * Validate URI components before building connection string.
+	 * Credentials are not validated here - MongoDB driver's safe APIs
+	 * (mongoc_uri_set_username/password) handle encoding automatically.
+	 */
+	if ((error_msg = mongo_validate_hostname(opt->svr_address)) != NULL)
+		ereport(ERROR,
+				(errcode(ERRCODE_INVALID_PARAMETER_VALUE),
+				 errmsg("invalid server address provided"),
+				 errdetail("%s", error_msg)));
+
+	if ((error_msg = mongo_validate_uri_component(opt->svr_database, "database")) != NULL)
+		ereport(ERROR,
+				(errcode(ERRCODE_INVALID_PARAMETER_VALUE),
+				 errmsg("invalid database name provided"),
+				 errdetail("%s", error_msg)));
+
+	if ((error_msg = mongo_validate_uri_component(opt->replicaSet, "replica set")) != NULL)
+		ereport(ERROR,
+				(errcode(ERRCODE_INVALID_PARAMETER_VALUE),
+				 errmsg("invalid replica set name provided"),
+				 errdetail("%s", error_msg)));
+
+	if ((error_msg = mongo_validate_read_preference(opt->readPreference)) != NULL)
+		ereport(ERROR,
+				(errcode(ERRCODE_INVALID_PARAMETER_VALUE),
+				 errmsg("invalid read preference provided"),
+				 errdetail("%s", error_msg)));
+
+	auth_enabled = (opt->svr_username != NULL && opt->svr_password != NULL);
+
+	/*
+	 * Build base URI without credentials first.
+	 * Format: mongodb://host:port/database?options
+	 */
+	if (opt->replicaSet)
 	{
 		if (opt->readPreference)
-			uri = bson_strdup_printf("mongodb://%s:%hu/%s?readPreference=%s&ssl=%s&replicaSet=%s",
-									 opt->svr_address, opt->svr_port,
-									 opt->svr_database, opt->readPreference,
-									 opt->ssl ? "true" : "false",
-									 opt->replicaSet);
+			base_uri = bson_strdup_printf("mongodb://%s:%hu/%s?readPreference=%s&ssl=%s&replicaSet=%s",
+										  opt->svr_address, opt->svr_port,
+										  opt->svr_database,
+										  opt->readPreference,
+										  opt->ssl ? "true" : "false",
+										  opt->replicaSet);
 		else
-			uri = bson_strdup_printf("mongodb://%s:%hu/%s?ssl=%s&replicaSet=%s",
-									 opt->svr_address, opt->svr_port,
-									 opt->svr_database,
-									 opt->ssl ? "true" : "false",
-									 opt->replicaSet);
+			base_uri = bson_strdup_printf("mongodb://%s:%hu/%s?ssl=%s&replicaSet=%s",
+										  opt->svr_address, opt->svr_port,
+										  opt->svr_database,
+										  opt->ssl ? "true" : "false",
+										  opt->replicaSet);
 	}
 	else if (opt->readPreference)
-		uri = bson_strdup_printf("mongodb://%s:%hu/%s?readPreference=%s&ssl=%s",
-								 opt->svr_address, opt->svr_port,
-								 opt->svr_database, opt->readPreference,
-								 opt->ssl ? "true" : "false");
+		base_uri = bson_strdup_printf("mongodb://%s:%hu/%s?readPreference=%s&ssl=%s",
+									  opt->svr_address, opt->svr_port,
+									  opt->svr_database, opt->readPreference,
+									  opt->ssl ? "true" : "false");
 	else
-		uri = bson_strdup_printf("mongodb://%s:%hu/%s?ssl=%s",
-								 opt->svr_address, opt->svr_port,
-								 opt->svr_database,
-								 opt->ssl ? "true" : "false");
+		base_uri = bson_strdup_printf("mongodb://%s:%hu/%s?ssl=%s",
+									  opt->svr_address, opt->svr_port,
+									  opt->svr_database,
+									  opt->ssl ? "true" : "false");
 
+	/* Create URI object from base string */
+	uri = mongoc_uri_new_with_error(base_uri, &error);
+	bson_free(base_uri);
 
-	client = mongoc_client_new(uri);
+	if (!uri)
+		ereport(ERROR,
+				(errcode(ERRCODE_INVALID_PARAMETER_VALUE),
+				 errmsg("failed to parse MongoDB URI"),
+				 errhint("MongoDB error: \"%s\"", error.message)));
 
-	if (opt->ssl)
+	/* Set credentials separately using safe API */
+	if (auth_enabled)
 	{
-		mongoc_ssl_opt_t *ssl_opts = (mongoc_ssl_opt_t *) malloc(sizeof(mongoc_ssl_opt_t));
+		if (!mongoc_uri_set_username(uri, opt->svr_username))
+		{
+			mongoc_uri_destroy(uri);
+			ereport(ERROR,
+					(errcode(ERRCODE_INVALID_PARAMETER_VALUE),
+					 errmsg("failed to set MongoDB username")));
+		}
 
-		ssl_opts->pem_file = opt->pem_file;
-		ssl_opts->pem_pwd = opt->pem_pwd;
-		ssl_opts->ca_file = opt->ca_file;
-		ssl_opts->ca_dir = opt->ca_dir;
-		ssl_opts->crl_file = opt->crl_file;
-		ssl_opts->weak_cert_validation = opt->weak_cert_validation;
-		mongoc_client_set_ssl_opts(client, ssl_opts);
-		free(ssl_opts);
+		if (!mongoc_uri_set_password(uri, opt->svr_password))
+		{
+			mongoc_uri_destroy(uri);
+			ereport(ERROR,
+					(errcode(ERRCODE_INVALID_PARAMETER_VALUE),
+					 errmsg("failed to set MongoDB password")));
+		}
+
+		/* Set authentication database if specified */
+		if (opt->authenticationDatabase)
+		{
+			if (!mongoc_uri_set_auth_source(uri, opt->authenticationDatabase))
+			{
+				mongoc_uri_destroy(uri);
+				ereport(ERROR,
+						(errcode(ERRCODE_INVALID_PARAMETER_VALUE),
+						 errmsg("failed to set MongoDB authentication database")));
+			}
+		}
 	}
 
-	bson_free(uri);
-
-	if (client == NULL)
+	/* Create client from URI object */
+	client = mongoc_client_new_from_uri_with_error(uri, &error);
+	if (!client)
+	{
+		mongoc_uri_destroy(uri);
 		ereport(ERROR,
-				(errmsg("could not connect to %s:%d", opt->svr_address,
+				(errcode(ERRCODE_FDW_UNABLE_TO_ESTABLISH_CONNECTION),
+				 errmsg("could not connect to %s:%d", opt->svr_address,
 						opt->svr_port),
-				 errhint("Mongo driver connection error.")));
+				 errhint("MongoDB error: \"%s\"", error.message)));
+	}
+
+	/* Configure SSL options if enabled */
+	if (opt->ssl)
+	{
+		mongoc_ssl_opt_t ssl_opts = {0};
+
+		ssl_opts.pem_file = opt->pem_file;
+		ssl_opts.pem_pwd = opt->pem_pwd;
+		ssl_opts.ca_file = opt->ca_file;
+		ssl_opts.ca_dir = opt->ca_dir;
+		ssl_opts.crl_file = opt->crl_file;
+		ssl_opts.weak_cert_validation = opt->weak_cert_validation;
+		mongoc_client_set_ssl_opts(client, &ssl_opts);
+	}
+
+	/* Clean up URI object */
+	mongoc_uri_destroy(uri);
 
 	return client;
 }
@@ -882,4 +903,91 @@ char *
 bsonAsJson(const BSON *bsonDocument)
 {
 	return bson_as_legacy_extended_json(bsonDocument, NULL);
+}
+
+/*
+ * mongo_validate_uri_component
+ *		Validate URI component (database, replica set) for injection characters.
+ *
+ * Returns error message on failure, NULL on success.
+ */
+static const char *
+mongo_validate_uri_component(const char *component, const char *field_name)
+{
+	const char *p;
+
+	if (component == NULL)
+		return NULL;
+
+	/* Check for URI special characters that could break parsing. */
+	for (p = component; *p; p++)
+	{
+		unsigned char c = (unsigned char) *p;
+
+		/* Reject URI special characters that could cause injection */
+		if (c == '/' || c == '?' || c == '#' || c == '&' || c == '=')
+			return psprintf("%s contains invalid URI special characters", field_name);
+	}
+
+	return NULL;
+}
+
+/*
+ * mongo_validate_read_preference
+ *		Validate read preference value against allowed values.
+ *
+ * Returns error message on failure, NULL on success.
+ */
+static const char *
+mongo_validate_read_preference(const char *pref)
+{
+	if (pref == NULL)
+		return NULL;
+
+	/* Only allow specific read preference values */
+	if (strcmp(pref, "primary") != 0 &&
+		strcmp(pref, "primaryPreferred") != 0 &&
+		strcmp(pref, "secondary") != 0 &&
+		strcmp(pref, "secondaryPreferred") != 0 &&
+		strcmp(pref, "nearest") != 0)
+		return psprintf("invalid read preference value: %s", pref);
+
+	return NULL;
+}
+
+/*
+ * mongo_validate_hostname
+ *		Validate server address (hostname or IP) for injection characters.
+ *
+ * Returns error message on failure, NULL on success.
+ */
+static const char *
+mongo_validate_hostname(const char *address)
+{
+	const char *p;
+
+	if (address == NULL)
+		return "server address cannot be NULL";
+
+	/* Check for empty hostname */
+	if (address[0] == '\0')
+		return "server address cannot be empty";
+
+	/*
+	 * Check for URI special characters that could break parsing.
+	 * Allow: letters, digits, dots (.), hyphens (-), colons (:) and square
+	 * brackets ([ ]) so that bracketed IPv6 literals such as [::1] work.
+	 * Reject: /, ?, #, &, =, @ and other special chars
+	 */
+	for (p = address; *p; p++)
+	{
+		unsigned char c = (unsigned char) *p;
+
+		if (c == '/' || c == '?' || c == '#' || c == '&' || c == '=' || c == '@' ||
+			c == ' ' || c == '\'' || c == '"' || c == '\\' || c == '|' ||
+			c == '<' || c == '>' || c == '{' || c == '}')
+			return psprintf("server address contains invalid character: '%c'", c);
+	}
+
+	return NULL;
 }
